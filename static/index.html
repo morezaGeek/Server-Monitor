@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server Monitor — Dashboard</title>
+    <meta name="description" content="Real-time server resource monitoring dashboard">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css?v=29">
+</head>
+
+<body>
+    <!-- Background Effects -->
+    <div class="bg-effects">
+        <div class="bg-orb bg-orb-1"></div>
+        <div class="bg-orb bg-orb-2"></div>
+        <div class="bg-orb bg-orb-3"></div>
+    </div>
+
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <div class="logo">
+                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                        <rect width="32" height="32" rx="8" fill="url(#logoGrad)" />
+                        <path d="M8 22V14L12 10L16 14V22" stroke="white" stroke-width="1.5" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                        <path d="M16 22V10L20 6L24 10V22" stroke="white" stroke-width="1.5" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                        <line x1="6" y1="22" x2="26" y2="22" stroke="white" stroke-width="1.5" stroke-linecap="round" />
+                        <defs>
+                            <linearGradient id="logoGrad" x1="0" y1="0" x2="32" y2="32">
+                                <stop stop-color="#6366f1" />
+                                <stop offset="1" stop-color="#8b5cf6" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <div>
+                    <h1>Server Monitor</h1>
+                    <p class="header-subtitle" id="headerSubtitle">Connecting...</p>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="header-badges">
+                    <div class="load-badge" title="System Load Average">
+                        <span class="load-label">Load:</span>
+                        <span id="load1">—</span> / <span id="load5">—</span> / <span id="load15">—</span>
+                    </div>
+                    <div class="uptime-badge" id="uptimeBadge">
+                        <span class="pulse-dot"></span>
+                        <span id="uptimeText">—</span>
+                    </div>
+                    <a href="/static/terminal.html?v=4" target="_blank" class="ssh-btn" title="Open SSH Terminal">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z">
+                            </path>
+                            <polyline points="9 9 11 12 9 15"></polyline>
+                            <line x1="13" y1="15" x2="17" y2="15"></line>
+                        </svg>
+                        SSH
+                    </a>
+                    <button class="settings-btn" id="btnSettingsOpen" title="Panel Settings" style="display: none;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path
+                                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                            </path>
+                        </svg>
+                        Settings
+                    </button>
+                    <button class="theme-toggle" id="themeToggle" title="Toggle dark mode">🌙</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Current Stats Cards -->
+        <section class="stats-grid" id="statsGrid">
+            <div class="stat-card stat-card-cpu">
+                <div class="stat-header">
+                    <div class="stat-icon stat-icon-cpu">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <rect x="4" y="4" width="16" height="16" rx="2" />
+                            <rect x="9" y="9" width="6" height="6" />
+                            <line x1="9" y1="1" x2="9" y2="4" />
+                            <line x1="15" y1="1" x2="15" y2="4" />
+                            <line x1="9" y1="20" x2="9" y2="23" />
+                            <line x1="15" y1="20" x2="15" y2="23" />
+                            <line x1="20" y1="9" x2="23" y2="9" />
+                            <line x1="20" y1="14" x2="23" y2="14" />
+                            <line x1="1" y1="9" x2="4" y2="9" />
+                            <line x1="1" y1="14" x2="4" y2="14" />
+                        </svg>
+                    </div>
+                    <span class="stat-label">CPU</span>
+                </div>
+                <div class="cpu-model" id="cpuModelName">Fetching Info...</div>
+                <div class="stat-gauge-wrapper">
+                    <div class="stat-gauge" id="cpuGauge">
+                        <svg viewBox="0 0 120 120">
+                            <circle class="gauge-bg" cx="60" cy="60" r="52" />
+                            <circle class="gauge-fill gauge-fill-cpu" cx="60" cy="60" r="52" id="cpuGaugeFill" />
+                        </svg>
+                        <div class="gauge-value">
+                            <span class="gauge-number" id="cpuPercent">0</span>
+                            <span class="gauge-unit">%</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="stat-details">
+                    <div class="stat-detail"><span>Cores</span><span id="cpuCores">—</span></div>
+                    <div class="stat-detail"><span>Frequency</span><span id="cpuFreq">—</span></div>
+                </div>
+                <div class="cpu-cores-section">
+                    <div class="cpu-cores-label">Per-Core Usage</div>
+                    <div id="cpuCoresGrid" class="cpu-cores-grid"></div>
+                </div>
+                <div class="cpu-benchmark-section">
+                    <div class="benchmark-actions">
+                        <button id="btnBenchmarkCpu" class="btn-benchmark">
+                            <span class="btn-text">Run Benchmark</span>
+                            <div class="btn-loader hidden"></div>
+                        </button>
+                        <button id="btnStopBenchmark" class="btn-benchmark btn-stop hidden">
+                            <span class="btn-text">Stop</span>
+                        </button>
+                    </div>
+                    <div id="benchmarkResult" class="benchmark-result hidden">Score: <span id="benchmarkScore">—</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stat-card stat-card-ram">
+                <div class="stat-header">
+                    <div class="stat-icon stat-icon-ram">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <rect x="2" y="6" width="20" height="12" rx="2" />
+                            <line x1="6" y1="10" x2="6" y2="14" />
+                            <line x1="10" y1="10" x2="10" y2="14" />
+                            <line x1="14" y1="10" x2="14" y2="14" />
+                            <line x1="18" y1="10" x2="18" y2="14" />
+                        </svg>
+                    </div>
+                    <span class="stat-label">Memory</span>
+                </div>
+                <div class="stat-gauge-wrapper">
+                    <div class="stat-gauge" id="ramGauge">
+                        <svg viewBox="0 0 120 120">
+                            <circle class="gauge-bg" cx="60" cy="60" r="52" />
+                            <circle class="gauge-fill gauge-fill-ram" cx="60" cy="60" r="52" id="ramGaugeFill" />
+                        </svg>
+                        <div class="gauge-value">
+                            <span class="gauge-number" id="ramPercent">0</span>
+                            <span class="gauge-unit">%</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="stat-details">
+                    <div class="stat-detail"><span>Total</span><span id="ramTotal">—</span></div>
+                    <div class="stat-detail"><span>Used</span><span id="ramUsed">—</span></div>
+                    <div class="stat-detail"><span>Free</span><span id="ramFree">—</span></div>
+                    <div class="stat-detail"><span>Shared</span><span id="ramShared">—</span></div>
+                    <div class="stat-detail"><span>Buff/Cache</span><span id="ramBuffCache">—</span></div>
+                    <div class="stat-detail"><span>Available</span><span id="ramAvailable">—</span></div>
+                    <div class="stat-detail"><span>Swap (Used/Total)</span><span id="ramSwap">—</span></div>
+                </div>
+            </div>
+
+            <div class="stat-card stat-card-disk">
+                <div class="stat-header">
+                    <div class="stat-icon stat-icon-disk">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <ellipse cx="12" cy="5" rx="9" ry="3" />
+                            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+                            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+                        </svg>
+                    </div>
+                    <span class="stat-label">Disk</span>
+                </div>
+                <div class="stat-gauge-wrapper">
+                    <div class="stat-gauge" id="diskGauge">
+                        <svg viewBox="0 0 120 120">
+                            <circle class="gauge-bg" cx="60" cy="60" r="52" />
+                            <circle class="gauge-fill gauge-fill-disk" cx="60" cy="60" r="52" id="diskGaugeFill" />
+                        </svg>
+                        <div class="gauge-value">
+                            <span class="gauge-number" id="diskPercent">0</span>
+                            <span class="gauge-unit">%</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="stat-details">
+                    <div class="stat-detail"><span>Used</span><span id="diskUsed">—</span></div>
+                    <div class="stat-detail"><span>Free</span><span id="diskFree">—</span></div>
+                    <div class="stat-detail"><span>Read / Write Speed</span><span id="diskSpeed">— / —</span></div>
+                    <div class="stat-detail"><span>Read / Write IOPS</span><span id="diskIops">— / —</span></div>
+                </div>
+            </div>
+
+            <div class="stat-card stat-card-net">
+                <div class="stat-header">
+                    <div class="stat-icon stat-icon-net">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M12 20V10" />
+                            <path d="M18 20V4" />
+                            <path d="M6 20V16" />
+                        </svg>
+                    </div>
+                    <span class="stat-label">Network</span>
+                </div>
+                <div class="stat-gauge-wrapper">
+                    <div class="net-stats">
+                        <div class="net-stat">
+                            <span class="net-arrow net-arrow-up">↑</span>
+                            <div>
+                                <span class="net-value" id="netSent">0 Mbps</span>
+                                <span class="net-label">Upload</span>
+                            </div>
+                        </div>
+                        <div class="net-stat">
+                            <span class="net-arrow net-arrow-down">↓</span>
+                            <div>
+                                <span class="net-value" id="netRecv">0 Mbps</span>
+                                <span class="net-label">Download</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="stat-details">
+                    <div class="stat-detail" style="align-items: center;">
+                        <span>Interface</span>
+                        <select id="nicSelect" class="iface-select"
+                            style="min-width:80px; padding:1px 4px; font-size:0.82rem; height:auto;"></select>
+                    </div>
+                    <div class="stat-detail"><span title="Packets per second">PPS (Up / Down)</span><span id="livePps"
+                            style="font-size:0.85rem;">— / —</span></div>
+                    <div class="stat-detail" style="align-items: center;">
+                        <span style="display:flex; align-items:center; gap:6px; white-space:nowrap;">Payload
+                            <select id="payloadRange" class="iface-select"
+                                style="padding:1px 4px; font-size:0.82rem; min-width:min-content; height:auto;">
+                                <option value="boot" selected>Since Boot</option>
+                                <option value="1h">1h</option>
+                                <option value="2h">2h</option>
+                                <option value="6h">6h</option>
+                                <option value="12h">12h</option>
+                                <option value="1d">1d</option>
+                                <option value="1w">1w</option>
+                                <option value="1m">1m</option>
+                            </select>
+                        </span>
+                        <span id="livePayload" style="font-size:0.82rem; white-space:nowrap;">— / —</span>
+                    </div>
+                    <div class="stat-detail"><span>TCP / UDP</span><span id="liveTcpUdp">— / —</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Time Range Selector -->
+        <section class="range-section">
+            <div class="range-buttons" id="rangeButtons">
+                <button class="range-btn active" data-range="1h">1 Hour</button>
+                <button class="range-btn" data-range="2h">2 Hours</button>
+                <button class="range-btn" data-range="12h">12 Hours</button>
+                <button class="range-btn" data-range="1d">1 Day</button>
+                <button class="range-btn" data-range="2d">2 Days</button>
+                <button class="range-btn" data-range="1w">1 Week</button>
+                <button class="range-btn" data-range="1m">1 Month</button>
+            </div>
+            <div class="refresh-info">
+                <span class="refresh-dot"></span>
+                Auto-refresh every 1s
+            </div>
+        </section>
+
+        <!-- Charts -->
+        <section class="charts-grid">
+            <div class="chart-card chart-card-cpu">
+                <div class="chart-header">
+                    <h3>CPU Usage</h3>
+                    <div class="chart-header-controls">
+                        <div class="net-max-input" title="Set Y-axis max CPU %">
+                            <label for="cpuDynamicMax">Max:</label>
+                            <input type="number" id="cpuDynamicMax" value="100" min="10" max="100" step="5">
+                            <span>%</span>
+                        </div>
+                        <span class="chart-badge chart-badge-cpu" id="cpuAvgBadge">Avg: —%</span>
+                        <button class="btn-fullscreen" title="Toggle Fullscreen">
+                            <svg class="icon-expand" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                            </svg>
+                            <svg class="icon-compress" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                style="display:none;">
+                                <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="cpuChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card chart-card-ram">
+                <div class="chart-header">
+                    <h3>Memory Usage</h3>
+                    <div class="chart-header-controls">
+                        <span class="chart-badge chart-badge-ram" id="ramAvgBadge">Avg: —%</span>
+                        <button class="btn-fullscreen" title="Toggle Fullscreen">
+                            <svg class="icon-expand" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                            </svg>
+                            <svg class="icon-compress" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                style="display:none;">
+                                <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="ramChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card chart-card-disk">
+                <div class="chart-header">
+                    <h3>Disk Usage</h3>
+                    <div class="chart-header-controls">
+                        <span class="chart-badge chart-badge-disk" id="diskAvgBadge">Avg: —%</span>
+                        <button class="btn-fullscreen" title="Toggle Fullscreen">
+                            <svg class="icon-expand" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                            </svg>
+                            <svg class="icon-compress" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                style="display:none;">
+                                <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="diskChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card chart-card-net">
+                <div class="chart-header">
+                    <h3>Network I/O</h3>
+                    <div class="chart-header-controls">
+                        <div class="net-max-input" title="Set Y-axis max in Mbps">
+                            <label for="netMaxMbps">Max:</label>
+                            <input type="number" id="netMaxMbps" value="400" min="10" max="10000" step="10">
+                            <span>Mbps</span>
+                        </div>
+                        <span class="chart-badge chart-badge-net" id="netAvgBadge">—</span>
+                        <button class="btn-fullscreen" title="Toggle Fullscreen">
+                            <svg class="icon-expand" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                            </svg>
+                            <svg class="icon-compress" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                style="display:none;">
+                                <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="netChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Connections Chart -->
+        <section class="conn-section">
+            <div class="chart-card chart-card-conn">
+                <div class="chart-header">
+                    <h3>🔗 TCP / UDP Connections</h3>
+                    <div class="chart-header-controls">
+                        <select id="connIfaceSelect" class="iface-select" title="Filter by interface">
+                            <option value="Total" selected>Total</option>
+                        </select>
+                        <span class="chart-badge chart-badge-conn" id="connBadge">—</span>
+                        <button class="btn-fullscreen" title="Toggle Fullscreen">
+                            <svg class="icon-expand" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                            </svg>
+                            <svg class="icon-compress" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                style="display:none;">
+                                <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="connChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Server Monitor Dashboard v1.0.0 &copy; 2026 By morezaGeek</p>
+        </footer>
+    </div>
+
+    <!-- Settings Overlay -->
+    <div id="settingsOverlay" class="login-overlay hidden">
+        <div class="login-box settings-box">
+            <button id="closeSettings" class="btn-close-overlay">×</button>
+            <div class="login-header">
+                <h2>Panel Settings</h2>
+                <p>Manage SSL Certificates and Database Backups</p>
+            </div>
+
+            <div class="settings-section">
+                <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg> SSL Configuration</h3>
+                <p class="settings-desc">Paste your SSL certificate details below to enable HTTPS. Leave blank to
+                    disable SSL and revert to HTTP.</p>
+
+                <form id="sslForm" autocomplete="off">
+                    <div class="form-group">
+                        <label for="sslKey">Private Key (.key / .pem)</label>
+                        <textarea id="sslKey" class="form-control" rows="4"
+                            placeholder="-----BEGIN PRIVATE KEY-----..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="sslCert">Certificate (.crt / .pem)</label>
+                        <textarea id="sslCert" class="form-control" rows="4"
+                            placeholder="-----BEGIN CERTIFICATE-----..."></textarea>
+                    </div>
+
+                    <button type="submit" id="btnSaveSSL" class="btn-login" style="margin-top: 10px;">
+                        <span class="btn-text">Save & Restart Panel</span>
+                        <div class="btn-loader hidden"></div>
+                    </button>
+                </form>
+            </div>
+
+            <div class="settings-divider"></div>
+
+            <div class="settings-section">
+                <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                    </svg> Database Management</h3>
+                <p class="settings-desc">Download a complete snapshot of all historical server metrics, or upload an
+                    existing `metrics.db` backup file.</p>
+                <div class="db-actions">
+                    <button id="btnBackupDb" class="btn-db btn-db-download">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        Download Backup
+                    </button>
+                    <div class="upload-wrapper">
+                        <input type="file" id="dbFileInput" accept=".db,.sqlite" class="hidden">
+                        <button id="btnRestoreDb" class="btn-db btn-db-upload">
+                            <span class="btn-text" style="display:flex;align-items:center;gap:6px;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                                Restore & Restart
+                            </span>
+                            <div class="btn-loader hidden"></div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script
+        src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="/static/app.js?v=29"></script>
+</body>
+
+</html>

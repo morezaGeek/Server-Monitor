@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server SSH Terminal</title>
+    <link rel="stylesheet" href="/static/xterm/xterm.css" />
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #0f172a;
+            /* Dark theme background matching UI */
+            overflow: hidden;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: #f1f5f9;
+        }
+
+        #terminal-container {
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            display: none;
+            /* Hidden until connected */
+        }
+
+        .xterm {
+            padding: 10px;
+            box-sizing: border-box;
+            height: 100%;
+        }
+
+        /* Loading / Login Overlay */
+        .overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .login-box {
+            background: rgba(30, 41, 59, 0.85);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 32px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 8px;
+        }
+
+        .login-header h2 {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #f1f5f9, #94a3b8);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 3fr 1fr;
+            gap: 12px;
+        }
+
+        label {
+            font-size: 0.85rem;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+
+        input {
+            background: #0f172a;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #f1f5f9;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-family: 'Inter', sans-serif;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        input:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+        }
+
+        button {
+            background: linear-gradient(135deg, #4f46e5, #9333ea);
+            color: #ffffff;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 8px;
+            box-shadow: 0 4px 14px rgba(99, 102, 241, 0.3);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+        }
+
+        button:disabled {
+            background: #475569;
+            color: #94a3b8;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .error-message {
+            color: #ef4444;
+            font-size: 0.85rem;
+            text-align: center;
+            min-height: 20px;
+        }
+
+        /* Spinner */
+        .spinner-overlay {
+            display: none;
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.9);
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-left-color: #6366f1;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+
+        @keyframes spin {
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .status-text {
+            color: #94a3b8;
+            font-size: 0.95rem;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Login Form Overlay -->
+    <div id="login-overlay" class="overlay">
+        <div class="login-box">
+            <div class="login-header">
+                <h2>Server SSH Terminal</h2>
+            </div>
+
+            <form id="ssh-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Host / IP</label>
+                        <input type="text" id="ssh-host" placeholder="e.g. 192.168.1.100" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Port</label>
+                        <input type="number" id="ssh-port" placeholder="22" value="22" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="ssh-user" placeholder="root" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="ssh-pass" required>
+                </div>
+
+                <div class="error-message" id="login-error"></div>
+
+                <button type="submit" id="connect-btn">Connect</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Loading Spinner Overlay -->
+    <div id="loading-spinner" class="spinner-overlay">
+        <div class="spinner"></div>
+        <div class="status-text" id="spinner-text">Connecting...</div>
+    </div>
+
+    <!-- Terminal Container -->
+    <div id="terminal-container"></div>
+
+    <script src="/static/xterm/xterm.js"></script>
+    <script src="/static/xterm/addon-fit.js"></script>
+    <script src="/static/terminal.js?v=3"></script>
+</body>
+
+</html>

@@ -1,0 +1,45 @@
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Database
+metrics.db
+metrics.db.tmp
+
+# Security
+cert.pem
+key.pem
+
+# Environment
+.env
+.venv
+
+# System
+.DS_Store
+Thumbs.db
+
+# Temp/Debug scripts
+fetch_logs.py
+test_settings.py
+test_backup.db
+test_backup_91.db
