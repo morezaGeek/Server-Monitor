@@ -47,6 +47,12 @@ The dashboard enforces secure **HTTP Basic Authentication**.
 During installation, the script will prompt you to create a secure **Username** and **Password**. 
 These credentials are automatically injected into the dashboard's environment via the systemd service.
 
+## ⚙️ Reconfiguration (Change Port/Credentials)
+If you ever need to change your Port, Username, or Password after installation, simply run:
+```bash
+sudo bash /opt/server-monitor/configure.sh
+```
+
 ## 🗑️ Uninstallation
 
 If you wish to completely remove the dashboard and its background service, run:
