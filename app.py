@@ -392,8 +392,8 @@ STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 security = HTTPBasic()
 
 def get_current_username(credentials: HTTPBasicCredentials = Depends(security)):
-    correct_username = b"root"
-    correct_password = b"16637615Ea@"
+    correct_username = os.environ.get("PANEL_USERNAME", "admin").encode("utf8")
+    correct_password = os.environ.get("PANEL_PASSWORD", "admin").encode("utf8")
     is_correct_username = credentials.username.encode("utf8") == correct_username
     is_correct_password = credentials.password.encode("utf8") == correct_password
     if not (is_correct_username and is_correct_password):

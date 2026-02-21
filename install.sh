@@ -65,11 +65,21 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# 6. Configuration (Port)
-DEFAULT_PORT=8080
+# 6. Configuration (Credentials)
+PANEL_PORT=8080
 echo -e "${BLUE}Configuration:${NC}"
-read -p "Enter the port for the dashboard [Default: $DEFAULT_PORT]: " USER_PORT
-PANEL_PORT=${USER_PORT:-$DEFAULT_PORT}
+while true; do
+    read -p "Enter a secure username for the dashboard: " PANEL_USER
+    if [ -n "$PANEL_USER" ]; break; fi
+    echo -e "${RED}Username cannot be empty.${NC}"
+done
+
+while true; do
+    read -s -p "Enter a secure password for the dashboard: " PANEL_PASS
+    echo ""
+    if [ -n "$PANEL_PASS" ]; break; fi
+    echo -e "${RED}Password cannot be empty.${NC}"
+done
 
 # 7. Create/Update Systemd Service
 echo -e "${BLUE}Configuring systemd service...${NC}"
@@ -82,6 +92,8 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=$INSTALL_DIR
+Environment="PANEL_USERNAME=$PANEL_USER"
+Environment="PANEL_PASSWORD=$PANEL_PASS"
 ExecStart=$INSTALL_DIR/venv/bin/python3 $INSTALL_DIR/venv/bin/uvicorn app:app --host 0.0.0.0 --port $PANEL_PORT
 Restart=always
 RestartSec=3
@@ -102,5 +114,7 @@ echo -e "${GREEN}=======================================${NC}"
 echo -e "${GREEN}   Installation Successful!            ${NC}"
 echo -e "${GREEN}=======================================${NC}"
 echo -e "Panel is running at: ${BLUE}http://$IP_ADDR:$PANEL_PORT${NC}"
-echo -e "Default Credentials: ${BLUE}root / 16637615Ea@${NC}"
+echo -e "Your configured credentials:"
+echo -e "Username: ${BLUE}$PANEL_USER${NC}"
+echo -e "Password: ${BLUE}[HIDDEN]${NC}"
 echo -e "View logs: ${BLUE}journalctl -u server-monitor -f${NC}"

@@ -43,10 +43,16 @@ curl -sL https://raw.githubusercontent.com/morezaGeek/Server-Monitor/main/instal
    ```
 
 ## 🔐 Security
-The panel uses **HTTP Basic Authentication**.
-- **Default Username**: `root`
-- **Default Password**: `16637615Ea@`
-*(You can change these credentials inside `app.py` in the `get_current_username` function)*
+The dashboard enforces secure **HTTP Basic Authentication**.
+During installation, the script will prompt you to create a secure **Username** and **Password**. 
+These credentials are automatically injected into the dashboard's environment via the systemd service.
+
+## 🗑️ Uninstallation
+
+If you wish to completely remove the dashboard and its background service, run:
+```bash
+sudo bash /opt/server-monitor/uninstall.sh
+```
 
 ## 👨‍💻 Author
 Created by **morezaGeek**
