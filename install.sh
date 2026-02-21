@@ -70,14 +70,14 @@ PANEL_PORT=8080
 echo -e "${BLUE}Configuration:${NC}"
 while true; do
     read -p "Enter a secure username for the dashboard: " PANEL_USER
-    if [ -n "$PANEL_USER" ]; break; fi
+    if [ -n "$PANEL_USER" ]; then break; fi
     echo -e "${RED}Username cannot be empty.${NC}"
 done
 
 while true; do
     read -s -p "Enter a secure password for the dashboard: " PANEL_PASS
     echo ""
-    if [ -n "$PANEL_PASS" ]; break; fi
+    if [ -n "$PANEL_PASS" ]; then break; fi
     echo -e "${RED}Password cannot be empty.${NC}"
 done
 
