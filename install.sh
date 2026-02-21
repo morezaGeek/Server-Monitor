@@ -78,8 +78,7 @@ while true; do
 done
 
 while true; do
-    read -s -p "Enter a secure password for the dashboard: " PANEL_PASS < /dev/tty
-    echo ""
+    read -p "Enter a secure password for the dashboard: " PANEL_PASS < /dev/tty
     if [ -n "$PANEL_PASS" ]; then break; fi
     echo -e "${RED}Password cannot be empty.${NC}"
 done
@@ -119,5 +118,5 @@ echo -e "${GREEN}=======================================${NC}"
 echo -e "Panel is running at: ${BLUE}http://$IP_ADDR:$PANEL_PORT${NC}"
 echo -e "Your configured credentials:"
 echo -e "Username: ${BLUE}$PANEL_USER${NC}"
-echo -e "Password: ${BLUE}[HIDDEN]${NC}"
+echo -e "Password: ${BLUE}$PANEL_PASS${NC}"
 echo -e "View logs: ${BLUE}journalctl -u server-monitor -f${NC}"
