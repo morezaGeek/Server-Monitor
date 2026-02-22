@@ -25,9 +25,9 @@ CURRENT_USER=$(grep -oP '(?<=PANEL_USERNAME=)[^"]*' "$SERVICE_FILE" || echo "")
 CURRENT_PASS=$(grep -oP '(?<=PANEL_PASSWORD=)[^"]*' "$SERVICE_FILE" || echo "")
 
 echo -e "Leave fields blank to keep current values."
-read -p "Enter new Dashboard Port [$CURRENT_PORT]: " NEW_PORT < /dev/tty
-read -p "Enter new Username [$CURRENT_USER]: " NEW_USER < /dev/tty
-read -p "Enter new Password [Keep current]: " NEW_PASS < /dev/tty
+read -p "Enter new Dashboard Port [$CURRENT_PORT]: " NEW_PORT
+read -p "Enter new Username [$CURRENT_USER]: " NEW_USER
+read -p "Enter new Password [Keep current]: " NEW_PASS
 
 FINAL_PORT=${NEW_PORT:-$CURRENT_PORT}
 FINAL_USER=${NEW_USER:-$CURRENT_USER}
