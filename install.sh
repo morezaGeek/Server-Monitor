@@ -66,19 +66,22 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 # 6. Configuration (Port & Credentials)
+# Reattach standard input to the terminal to fix backspace/arrow keys during 'curl | bash'
+exec < /dev/tty
+
 DEFAULT_PORT=8080
 echo -e "${BLUE}Configuration:${NC}"
-read -p "Enter the port for the dashboard [Default: $DEFAULT_PORT]: " USER_PORT < /dev/tty
+read -p "Enter the port for the dashboard [Default: $DEFAULT_PORT]: " USER_PORT
 PANEL_PORT=${USER_PORT:-$DEFAULT_PORT}
 
 while true; do
-    read -p "Enter a secure username for the dashboard: " PANEL_USER < /dev/tty
+    read -p "Enter a secure username for the dashboard: " PANEL_USER
     if [ -n "$PANEL_USER" ]; then break; fi
     echo -e "${RED}Username cannot be empty.${NC}"
 done
 
 while true; do
-    read -p "Enter a secure password for the dashboard: " PANEL_PASS < /dev/tty
+    read -p "Enter a secure password for the dashboard: " PANEL_PASS
     if [ -n "$PANEL_PASS" ]; then break; fi
     echo -e "${RED}Password cannot be empty.${NC}"
 done
