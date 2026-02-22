@@ -43,3 +43,5 @@ fetch_logs.py
 test_settings.py
 test_backup.db
 test_backup_91.db
+check_container.py
+deploy_disk_update.py

@@ -12,6 +12,7 @@ A professional, real-time server monitoring dashboard with a high-performance ba
 - **CPU Benchmark**: High-intensity multi-core performance testing (with stop functionality).
 - **Persistent History**: Stores historical metrics in an optimized SQLite database.
 - **Advanced Networking**: Multi-interface support and detailed packet-per-second (PPS) tracking.
+- **🌐 Virtual Browser**: Secure, Docker-based Chromium browser accessible directly from the dashboard.
 - **Beautiful UI**: Modern glassmorphism aesthetic with automatic Dark/Light mode support.
 
 ## 🚀 Quick Installation
@@ -59,6 +60,26 @@ If you wish to completely remove the dashboard and its background service, run:
 ```bash
 sudo bash /opt/server-monitor/uninstall.sh
 ```
+
+## 🌐 Virtual Browser
+
+The dashboard includes a **secure, Docker-based virtual Chromium browser** that runs directly on your server.
+
+### How It Works
+- A [linuxserver/chromium](https://docs.linuxserver.io/images/docker-chromium) container is deployed **locally** on port `127.0.0.1:3000` (never exposed externally).
+- All traffic is proxied through your existing HTTPS connection (port 443).
+- Two-layer authentication: **Dashboard login** + **Virtual Browser login**.
+
+### Usage
+1. Open the **Virtual Browser** modal from the dashboard.
+2. Set a **Username** and **Password** for the browser.
+3. Click **Install / Update** — Docker will be installed automatically if needed.
+4. Once ready, click **Open Browser Tab** to launch Chromium.
+
+### Requirements
+- **Docker** (auto-installed during setup)
+- ~1.5 GB disk space for the Chromium image
+- Works on **Ubuntu, Debian, AlmaLinux, Fedora, CentOS, RHEL**
 
 ## 👨‍💻 Author
 Created by **morezaGeek**

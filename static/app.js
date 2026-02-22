@@ -168,7 +168,7 @@
         return Math.round(a * 255).toString(16).padStart(2, "0");
     }
 
-    let cpuChart, ramChart, diskChart, netChart, connChart;
+    let cpuChart, ramChart, diskChart, diskIopsChart, netChart, connChart;
     let lastConnData = [];  // store last fetched data for re-filtering
 
     function initCharts() {
@@ -233,15 +233,160 @@
         diskChart = new Chart(diskCtx, {
             type: "line",
             data: {
-                datasets: [{
-                    label: "Disk",
-                    data: [],
-                    borderColor: COLORS.disk.start,
-                    backgroundColor: createGradient(diskCtx, COLORS.disk.start, COLORS.disk.end),
-                    fill: true
-                }]
+                datasets: [
+                    {
+                        label: "Disk %",
+                        data: [],
+                        borderColor: COLORS.disk.start,
+                        backgroundColor: "transparent",
+                        fill: false,
+                        yAxisID: "y"
+                    },
+                    {
+                        label: "Read",
+                        data: [],
+                        borderColor: "#10b981", // Emerald
+                        backgroundColor: "transparent",
+                        fill: false,
+                        yAxisID: "y1",
+                        borderWidth: 1.5,
+                        pointRadius: 0
+                    },
+                    {
+                        label: "Write",
+                        data: [],
+                        borderColor: "#ef4444", // Red
+                        backgroundColor: "transparent",
+                        fill: false,
+                        yAxisID: "y1",
+                        borderWidth: 1.5,
+                        pointRadius: 0
+                    }
+                ]
             },
-            options: chartOptions("Disk %")
+            options: {
+                ...chartOptions("Disk", false, true),
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        align: 'end',
+                        labels: { boxWidth: 12, usePointStyle: true, font: { size: 10 } }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function (ctx) {
+                                const val = ctx.parsed.y;
+                                if (val === null) return null;
+                                if (ctx.dataset.yAxisID === "y") return ` Usage: ${val.toFixed(1)}%`;
+                                return ` ${ctx.dataset.label}: ${val.toFixed(1)} MB/s`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: "time",
+                        time: { tooltipFormat: "PPpp" },
+                        grid: { color: "rgba(0,0,0,0.04)", drawBorder: false },
+                        ticks: { color: "#64748b", font: { family: "'Inter', sans-serif", size: 10 }, maxRotation: 0, autoSkipPadding: 20, maxTicksLimit: 8 }
+                    },
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        beginAtZero: true,
+                        max: 100,
+                        title: { display: true, text: '% Usage', font: { size: 10 } },
+                        grid: { color: "rgba(0,0,0,0.04)", drawBorder: false },
+                        ticks: { color: "#64748b", font: { size: 10 }, callback: val => val + "%" }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        beginAtZero: true,
+                        title: { display: true, text: 'Speed (MB/s)', font: { size: 10 } },
+                        grid: { drawOnChartArea: false }, // Prevent gridline overlap
+                        ticks: { color: "#64748b", font: { size: 10 }, callback: val => val.toFixed(1) + " MB" }
+                    }
+                }
+            }
+        });
+
+        const diskIopsCtx = document.getElementById("diskIopsChart").getContext("2d");
+        diskIopsChart = new Chart(diskIopsCtx, {
+            type: "line",
+            data: {
+                datasets: [
+                    {
+                        label: "Read IOPS",
+                        data: [],
+                        borderColor: "#8b5cf6", // Violet
+                        backgroundColor: "transparent",
+                        fill: false,
+                        yAxisID: "y",
+                        borderWidth: 1.5,
+                        pointRadius: 0
+                    },
+                    {
+                        label: "Write IOPS",
+                        data: [],
+                        borderColor: "#f59e0b", // Amber
+                        backgroundColor: "transparent",
+                        fill: false,
+                        yAxisID: "y",
+                        borderWidth: 1.5,
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                ...chartOptions("IOPS", false, true),
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        align: 'end',
+                        labels: { boxWidth: 12, usePointStyle: true, font: { size: 10 } }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function (ctx) {
+                                const val = ctx.parsed.y;
+                                if (val === null) return null;
+                                return ` ${ctx.dataset.label}: ${Math.round(val)}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: "time",
+                        time: { tooltipFormat: "PPpp" },
+                        grid: { color: "rgba(0,0,0,0.04)", drawBorder: false },
+                        ticks: { color: "#64748b", font: { family: "'Inter', sans-serif", size: 10 }, maxRotation: 0, autoSkipPadding: 20, maxTicksLimit: 8 }
+                    },
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        beginAtZero: true,
+                        suggestedMax: 10,
+                        title: { display: true, text: 'Operations/sec', font: { size: 10 } },
+                        grid: { color: "rgba(0,0,0,0.04)", drawBorder: false },
+                        ticks: { color: "#64748b", font: { size: 10 }, callback: val => Math.round(val) }
+                    }
+                }
+            }
         });
 
         const netCtx = document.getElementById("netChart").getContext("2d");
@@ -659,8 +804,58 @@
         diskChart.options.scales.x.min = minMs;
         diskChart.options.scales.x.max = maxMs;
         const diskData = data.map((d, i) => ({ x: timestamps[i], y: d.disk }));
+
+        // Extract and process Disk I/O metrics
+        const diskReadData = [];
+        const diskWriteData = [];
+        const diskReadIopsData = [];
+        const diskWriteIopsData = [];
+
+        for (let i = 0; i < data.length; i++) {
+            const d = data[i];
+            if (d.extra && d.extra.disk_read_bps !== undefined) {
+                // Convert bytes/sec to MB/sec
+                const readMBps = d.extra.disk_read_bps / 1_048_576;
+                const writeMBps = d.extra.disk_write_bps / 1_048_576;
+                diskReadData.push({ x: timestamps[i], y: readMBps });
+                diskWriteData.push({ x: timestamps[i], y: writeMBps });
+                diskReadIopsData.push({ x: timestamps[i], y: d.extra.disk_read_iops || 0 });
+                diskWriteIopsData.push({ x: timestamps[i], y: d.extra.disk_write_iops || 0 });
+            } else {
+                diskReadData.push({ x: timestamps[i], y: null });
+                diskWriteData.push({ x: timestamps[i], y: null });
+                diskReadIopsData.push({ x: timestamps[i], y: null });
+                diskWriteIopsData.push({ x: timestamps[i], y: null });
+            }
+        }
+
+        // Calculate dynamic max for disk speed (Y1) with 20% padding
+        let maxDiskSpd = 1; // start with an absolute minimum scale
+        for (let i = 0; i < diskReadData.length; i++) {
+            if (diskReadData[i].y > maxDiskSpd) maxDiskSpd = diskReadData[i].y;
+            if (diskWriteData[i].y > maxDiskSpd) maxDiskSpd = diskWriteData[i].y;
+        }
+        diskChart.options.scales.y1.max = maxDiskSpd * 1.2;
+
         diskChart.data.datasets[0].data = diskData;
+        diskChart.data.datasets[1].data = diskReadData;
+        diskChart.data.datasets[2].data = diskWriteData;
         diskChart.update("none");
+
+        // Calculate dynamic max for disk IOPS with 20% padding
+        let maxIops = 10;
+        for (let i = 0; i < diskReadIopsData.length; i++) {
+            if (diskReadIopsData[i].y > maxIops) maxIops = diskReadIopsData[i].y;
+            if (diskWriteIopsData[i].y > maxIops) maxIops = diskWriteIopsData[i].y;
+        }
+        diskIopsChart.options.scales.y.max = maxIops * 1.2;
+
+        diskIopsChart.options.scales.x.min = minMs;
+        diskIopsChart.options.scales.x.max = maxMs;
+        diskIopsChart.data.datasets[0].data = diskReadIopsData;
+        diskIopsChart.data.datasets[1].data = diskWriteIopsData;
+        diskIopsChart.update("none");
+
         const diskAvg = (data.reduce((s, d) => s + d.disk, 0) / data.length).toFixed(1);
         document.getElementById("diskAvgBadge").textContent = `Avg: ${diskAvg}%`;
 
@@ -1218,6 +1413,161 @@
         });
     }
 
+    function setupVirtualBrowser() {
+        const btnManage = document.getElementById('btnManageBrowser');
+        const overlay = document.getElementById('browserOverlay');
+        const btnClose = document.getElementById('closeBrowser');
+
+        if (!btnManage || !overlay) return;
+
+        // Open/Close logic
+        btnManage.addEventListener('click', () => {
+            overlay.classList.remove('hidden');
+            checkBrowserStatus();
+        });
+
+        btnClose.addEventListener('click', () => {
+            overlay.classList.add('hidden');
+        });
+
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                overlay.classList.add('hidden');
+            }
+        });
+
+        // Elements
+        const badge = document.getElementById('browserStatusBadge');
+        const btnInstall = document.getElementById('btnBrowserInstall');
+        const btnUninstall = document.getElementById('btnBrowserUninstall');
+        const btnClear = document.getElementById('btnBrowserClear');
+        const btnStart = document.getElementById('btnBrowserStart');
+        const btnStop = document.getElementById('btnBrowserStop');
+        const btnOpen = document.getElementById('btnBrowserOpen');
+        const logsPre = document.getElementById('browserLogs');
+        const logsBox = document.getElementById('browserLogBox');
+        let ws = null;
+
+        function connectLogsWS() {
+            if (ws && ws.readyState !== WebSocket.CLOSED) return;
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/api/browser/ws`);
+            ws.onmessage = (event) => {
+                logsPre.textContent += event.data + "\n";
+                // Max lines keep
+                const lines = logsPre.textContent.split('\n');
+                if (lines.length > 200) {
+                    logsPre.textContent = lines.slice(-200).join('\n');
+                }
+                logsBox.scrollTop = logsBox.scrollHeight;
+            };
+            ws.onclose = () => { setTimeout(connectLogsWS, 3000); };
+        }
+
+        async function checkBrowserStatus() {
+            try {
+                const res = await fetch("/api/browser/status");
+                if (res.ok) {
+                    const data = await res.json();
+                    updateBrowserUI(data);
+                }
+            } catch (err) {
+                console.error("Failed to fetch browser status:", err);
+            }
+        }
+
+        function updateBrowserUI(data) {
+            // data.state = "not_installed", "running", "stopped"
+            if (data.state === "running") {
+                badge.textContent = "Running";
+                badge.className = "badge badge-success";
+                btnInstall.style.display = "none";
+                btnStart.style.display = "none";
+                btnStop.style.display = "flex";
+                btnUninstall.style.display = "block";
+                btnOpen.disabled = false;
+            } else if (data.state === "stopped") {
+                badge.textContent = "Stopped";
+                badge.className = "badge badge-warning";
+                btnInstall.style.display = "none";
+                btnStart.style.display = "flex";
+                btnStop.style.display = "none";
+                btnUninstall.style.display = "block";
+                btnOpen.disabled = true;
+            } else {
+                badge.textContent = "Not Installed";
+                badge.className = "badge badge-error";
+                btnInstall.style.display = "flex";
+                btnStart.style.display = "none";
+                btnStop.style.display = "none";
+                btnUninstall.style.display = "none";
+                btnOpen.disabled = true;
+            }
+        }
+
+        async function performAction(action) {
+            connectLogsWS();
+            const config = {
+                user: document.getElementById('browserUser').value || "admin",
+                pass: document.getElementById('browserPass').value || "admin",
+                res: document.getElementById('browserRes').value,
+                quality: document.getElementById('browserQuality').value
+            };
+
+            const theBtn = action === 'install' ? btnInstall : (action === 'start' ? btnStart : (action === 'stop' ? btnStop : (action === 'clear_cache' ? btnClear : btnUninstall)));
+            const originalText = theBtn.textContent;
+            theBtn.disabled = true;
+
+            // Handle element structure for button loaders
+            if (theBtn.querySelector('.btn-text')) {
+                theBtn.querySelector('.btn-text').textContent = "Working...";
+            } else {
+                theBtn.textContent = "Working...";
+            }
+
+            try {
+                const res = await fetch("/api/browser/action", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action, config })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    updateBrowserUI(data);
+                } else {
+                    const err = await res.json();
+                    alert("Error: " + (err.detail || "Action failed"));
+                }
+            } catch (err) {
+                alert("Network error: " + err.message);
+            } finally {
+                theBtn.disabled = false;
+                if (theBtn.querySelector('.btn-text')) {
+                    theBtn.querySelector('.btn-text').textContent = action === 'install' ? "Install / Update" : "Working..."; // fallback
+                } else {
+                    theBtn.textContent = originalText;
+                }
+            }
+        }
+
+        btnInstall.addEventListener('click', () => performAction('install'));
+        btnUninstall.addEventListener('click', () => {
+            if (confirm("Uninstall Virtual Browser? This will remove the container.")) performAction('uninstall');
+        });
+        btnClear.addEventListener('click', () => {
+            if (confirm("Clear Docker cache and completely remove Chromium images?")) performAction('clear_cache');
+        });
+        btnStart.addEventListener('click', () => performAction('start'));
+        btnStop.addEventListener('click', () => performAction('stop'));
+
+        btnOpen.addEventListener('click', () => {
+            window.open("https://" + window.location.host + "/browser/", "_blank");
+        });
+
+        // Initial fetch
+        checkBrowserStatus();
+    }
+
     function init() {
         injectSVGGradients();
         setupThemeToggle();
@@ -1227,6 +1577,7 @@
         setupPayloadDropdown();
         setupBenchmark();
         setupSettings();
+        setupVirtualBrowser();
 
         // Fetch interfaces first, then initial data + start timers
         fetchInterfaces().then(() => {

@@ -22,14 +22,19 @@ import re
 
 import psutil
 import uvicorn
-from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect, Depends, HTTPException, status, UploadFile, File
+from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect, Depends, HTTPException, status, UploadFile, File, Request, Response
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
-import asyncio
+from fastapi.responses import FileResponse, JSONResponse, HTMLResponse, RedirectResponse
 import asyncssh
-import threading
 from pydantic import BaseModel
+from collections import deque
+import logging
+
+try:
+    from browser_mgr import browser_mgr
+except ImportError:
+    browser_mgr = None
 
 # ─── Configuration ───────────────────────────────────────────────────────────
 
@@ -160,6 +165,7 @@ class MetricsCollector:
         # Extra System Resources
         swap = psutil.swap_memory()
         cpu_cores = psutil.cpu_percent(percpu=True)
+        disk_speed_data = disk_tracker.get_speed()
         extra_data = {
             "cpu_cores": cpu_cores,
             "ram_free_gb": round(ram.free / (1024 ** 3), 2),
@@ -167,7 +173,11 @@ class MetricsCollector:
             "ram_buff_cache_gb": round((getattr(ram, 'buffers', 0) + getattr(ram, 'cached', 0)) / (1024 ** 3), 2),
             "ram_available_gb": round(ram.available / (1024 ** 3), 2),
             "swap_used_gb": round(swap.used / (1024 ** 3), 2),
-            "swap_total_gb": round(swap.total / (1024 ** 3), 2)
+            "swap_total_gb": round(swap.total / (1024 ** 3), 2),
+            "disk_read_bps": disk_speed_data.get("read_bps", 0),
+            "disk_write_bps": disk_speed_data.get("write_bps", 0),
+            "disk_read_iops": disk_speed_data.get("read_iops", 0),
+            "disk_write_iops": disk_speed_data.get("write_iops", 0)
         }
         extra_json_str = json.dumps(extra_data)
 
@@ -930,6 +940,203 @@ async def ssh_terminal(websocket: WebSocket):
     except Exception as e:
         try:
             await websocket.send_text(f"\r\nSSH Connection Error: {str(e)}\r\n")
+            await websocket.close()
+        except:
+            pass
+
+
+# ─── Virtual Browser ─────────────────────────────────────────────────────────
+
+@app.get("/api/browser/status")
+async def get_browser_status(username: str = Depends(get_current_username)):
+    if not browser_mgr:
+        return {"state": "not_installed"}
+    return await browser_mgr.get_status()
+
+class BrowserActionPayload(BaseModel):
+    action: str
+    config: dict = {}
+
+@app.post("/api/browser/action")
+async def browser_action(payload: BrowserActionPayload, username: str = Depends(get_current_username)):
+    if not browser_mgr:
+        raise HTTPException(status_code=500, detail="browser_mgr not loaded")
+        
+    action = payload.action
+    config = payload.config
+    
+    # Run the action as a background task so we can return immediately and let the frontend listen to the websocket
+    async def run_action():
+        try:
+            if action == "install":
+                await browser_mgr.install(config)
+            elif action == "uninstall":
+                await browser_mgr.uninstall()
+            elif action == "start":
+                await browser_mgr.start()
+            elif action == "stop":
+                await browser_mgr.stop()
+            elif action == "clear_cache":
+                await browser_mgr.clear_cache()
+            else:
+                browser_mgr._add_log(f"Unknown action: {action}")
+        except Exception as e:
+            browser_mgr._add_log(f"Error during {action}: {e}")
+            
+    asyncio.create_task(run_action())
+    
+    # Return current presumed status immediately
+    if action == "uninstall":
+        return {"state": "not_installed"}
+    elif action in ["start", "install", "clear_cache"]:
+        return {"state": "running"}
+    else:
+        return {"state": "stopped"}
+
+@app.websocket("/api/browser/ws")
+async def browser_ws(websocket: WebSocket):
+    await websocket.accept()
+    if not browser_mgr:
+        await websocket.send_text("Browser manager is offline.")
+        await websocket.close()
+        return
+        
+    # Create a unique queue for this connection
+    q = asyncio.Queue()
+    for msg in browser_mgr.log_history:
+        q.put_nowait(msg)
+        
+    browser_mgr.log_queues.append(q)
+    try:
+        while True:
+            # Wait for logs and send them
+            msg = await q.get()
+            await websocket.send_text(msg)
+    except WebSocketDisconnect:
+        pass
+    finally:
+        if q in browser_mgr.log_queues:
+            browser_mgr.log_queues.remove(q)
+
+import urllib.request
+import urllib.error
+import urllib.parse
+from fastapi import Response
+from fastapi.responses import StreamingResponse
+import websockets
+
+@app.api_route("/browser", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"])
+@app.api_route("/browser/", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"])
+@app.api_route("/browser/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"])
+async def browser_proxy_http(request: Request, response: Response, path: str = ""):
+    if path == "websockify":
+        return Response(status_code=400)
+    
+    url = f"http://127.0.0.1:3000/browser/{path}"
+    if request.url.query:
+        url += "?" + request.url.query
+        
+    method = request.method
+    headers = dict(request.headers)
+    for h in ["host", "connection", "upgrade", "content-length", "x-real-ip", "x-forwarded-for", "accept-encoding"]:
+        headers.pop(h.lower(), None)
+        headers.pop(h, None)
+        
+    body = await request.body()
+    req = urllib.request.Request(url, data=body if body else None, headers=headers, method=method)
+    
+    try:
+        def fetch():
+            return urllib.request.urlopen(req, timeout=10)
+        resp = await asyncio.get_event_loop().run_in_executor(None, fetch)
+        
+        def iterfile():
+            try:
+                while True:
+                    chunk = resp.read(8192)
+                    if not chunk:
+                        break
+                    yield chunk
+            except Exception:
+                pass
+            finally:
+                resp.close()
+
+        resp_headers = dict(resp.getheaders())
+        for h in ["Transfer-Encoding", "Connection", "Content-Encoding"]:
+            resp_headers.pop(h, None)
+            resp_headers.pop(h.lower(), None)
+            
+        return StreamingResponse(iterfile(), status_code=resp.status, headers=resp_headers)
+    except urllib.error.HTTPError as e:
+        return Response(content=e.read(), status_code=e.code, headers=dict(e.headers))
+    except Exception as e:
+        html_error = f"""
+        <html><body style="background:#0f172a; color:#10b981; font-family:sans-serif; text-align:center; padding:50px;">
+        <h2>Virtual Browser is Starting...</h2>
+        <p>The container is spinning up. Please wait 5-10 seconds and <b>refresh this page</b>.</p>
+        <p style="color:#64748b; font-size:12px;">(Internal details: {str(e)})</p>
+        <script>setTimeout(() => location.reload(), 3000);</script>
+        </body></html>
+        """
+        return Response(content=html_error, media_type="text/html", status_code=502)
+
+@app.websocket("/browser/{path:path}")
+async def browser_proxy_ws(websocket: WebSocket, path: str):
+    await websocket.accept()
+    target_url = f"http://127.0.0.1:3000/browser/{path}"
+    if websocket.query_params:
+        target_url += "?" + str(websocket.query_params)
+        
+    print(f"[*] WS Proxy: Request to {target_url}")
+    
+    # Get the authorization header from the client request to forward
+    auth_header = websocket.headers.get("authorization")
+    headers = {}
+    if auth_header:
+        headers["Authorization"] = auth_header
+    
+    try:
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.ws_connect(target_url, headers=headers) as target_ws:
+                print("[*] WS Proxy: Target connection established via aiohttp")
+                
+                async def forward_to_target():
+                    try:
+                        while True:
+                            msg = await websocket.receive()
+                            if msg.get("type") == "websocket.disconnect":
+                                await target_ws.close()
+                                break
+                            if "text" in msg:
+                                await target_ws.send_str(msg["text"])
+                            elif "bytes" in msg:
+                                await target_ws.send_bytes(msg["bytes"])
+                    except Exception as e:
+                        print(f"[*] WS Proxy: Forward-to-target error: {e}")
+
+                async def forward_to_client():
+                    try:
+                        async for msg in target_ws:
+                            if msg.type == aiohttp.WSMsgType.TEXT:
+                                await websocket.send_text(msg.data)
+                            elif msg.type == aiohttp.WSMsgType.BINARY:
+                                await websocket.send_bytes(msg.data)
+                            elif msg.type in (aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSING, aiohttp.WSMsgType.CLOSED):
+                                break
+                            elif msg.type == aiohttp.WSMsgType.ERROR:
+                                print(f"[*] WS Proxy: Target WS error: {target_ws.exception()}")
+                                break
+                    except Exception as e:
+                        print(f"[*] WS Proxy: Forward-to-client error: {e}")
+
+                await asyncio.gather(forward_to_target(), forward_to_client())
+    except Exception as e:
+        print(f"[*] WS Proxy Error: {e}")
+    finally:
+        print("[*] WS Proxy: Closing connections")
+        try:
             await websocket.close()
         except:
             pass
