@@ -68,17 +68,17 @@ pip install -r requirements.txt
 # 6. Configuration (Port & Credentials)
 DEFAULT_PORT=8080
 echo -e "${BLUE}Configuration:${NC}"
-read -p "Enter the port for the dashboard [Default: $DEFAULT_PORT]: " USER_PORT < /dev/tty
+read -e -p "Enter the port for the dashboard [Default: $DEFAULT_PORT]: " USER_PORT < /dev/tty
 PANEL_PORT=${USER_PORT:-$DEFAULT_PORT}
 
 while true; do
-    read -p "Enter a secure username for the dashboard: " PANEL_USER < /dev/tty
+    read -e -p "Enter a secure username for the dashboard: " PANEL_USER < /dev/tty
     if [ -n "$PANEL_USER" ]; then break; fi
     echo -e "${RED}Username cannot be empty.${NC}"
 done
 
 while true; do
-    read -p "Enter a secure password for the dashboard: " PANEL_PASS < /dev/tty
+    read -e -p "Enter a secure password for the dashboard: " PANEL_PASS < /dev/tty
     if [ -n "$PANEL_PASS" ]; then break; fi
     echo -e "${RED}Password cannot be empty.${NC}"
 done
