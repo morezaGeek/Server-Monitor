@@ -1090,15 +1090,33 @@ async def browser_proxy_http(request: Request, response: Response, path: str = "
                     ('location.protocol==="https:"', "true"),
                 ]:
                     body_text = body_text.replace(old, new)
+                # Also neutralize WebCodecs API checks
+                for old, new in [
+                    ('typeof VideoDecoder>"u"', "false"),
+                    ('typeof VideoDecoder==="undefined"', "false"),
+                    ("typeof VideoDecoder>'u'", "false"),
+                    ("typeof VideoDecoder==='undefined'", "false"),
+                    ('!window.VideoDecoder', "false"),
+                    ('!self.VideoDecoder', "false"),
+                ]:
+                    body_text = body_text.replace(old, new)
             
             if "text/html" in content_type:
                 # Also inject a script to hide any HTTPS error overlays
                 https_bypass = """<script>
 (function(){
   try{Object.defineProperty(window,'isSecureContext',{get:()=>true,configurable:true})}catch(e){}
+  if(!window.VideoDecoder){
+    window.VideoDecoder=class{constructor(o){this._o=o}configure(){}decode(c){if(this._o&&this._o.output)try{this._o.output(c)}catch(e){}}flush(){return Promise.resolve()}close(){}reset(){}static isConfigSupported(){return Promise.resolve({supported:false})}};
+    window.VideoEncoder=class{constructor(){}configure(){}encode(){}flush(){return Promise.resolve()}close(){}};
+    window.EncodedVideoChunk=class{constructor(o){Object.assign(this,o)}};
+  }
   var h=function(){
     document.querySelectorAll('div,p,span').forEach(function(el){
-      if(el.textContent&&el.textContent.indexOf('HTTPS')!==-1&&el.textContent.indexOf('secure')!==-1){
+      if(el.textContent&&(
+        (el.textContent.indexOf('HTTPS')!==-1&&el.textContent.indexOf('secure')!==-1)||
+        (el.textContent.indexOf('WebCodecs')!==-1)
+      )){
         el.style.display='none';
         if(el.parentElement)el.parentElement.style.display='none';
       }
