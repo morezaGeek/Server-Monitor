@@ -1050,18 +1050,6 @@ async def browser_proxy_http(request: Request, response: Response, path: str = "
             return urllib.request.urlopen(req, timeout=10)
         resp = await asyncio.get_event_loop().run_in_executor(None, fetch)
         
-        def iterfile():
-            try:
-                while True:
-                    chunk = resp.read(8192)
-                    if not chunk:
-                        break
-                    yield chunk
-            except Exception:
-                pass
-            finally:
-                resp.close()
-
         resp_headers = dict(resp.getheaders())
         for h in ["Transfer-Encoding", "Connection", "Content-Encoding"]:
             resp_headers.pop(h, None)
@@ -1069,22 +1057,17 @@ async def browser_proxy_http(request: Request, response: Response, path: str = "
 
         content_type = resp_headers.get("Content-Type", resp_headers.get("content-type", ""))
         
-        # For HTML/JS responses, patch KasmVNC's client-side HTTPS requirement
-        # The check is in the bundled JS module and checks window.location.protocol
+        # For HTML/JS responses, read full body and patch KasmVNC checks
         if "text/html" in content_type or "javascript" in content_type:
             body = resp.read()
             resp.close()
             body_text = body.decode("utf-8", errors="ignore")
             
             if "javascript" in content_type:
-                # Patch the exact KasmVNC pre-flight check function Ll()
-                # The check is: window.isSecureContext ? typeof window.VideoDecoder>"u" ? (error) : (ok) : (error HTTPS)
-                # We replace window.isSecureContext with true, and VideoDecoder check with false
+                # Patch the exact KasmVNC pre-flight check function
                 for old, new in [
-                    # Exact patterns from KasmVNC bundle index-CAzwT_Hb.js
                     ('window.isSecureContext?typeof window.VideoDecoder>"u"', 'true?false'),
                     ('window.isSecureContext&&navigator.clipboard', 'true&&navigator.clipboard'),
-                    # Generic patterns as fallback
                     ('"https:"!==location.protocol', "false"),
                     ('location.protocol!=="https:"', "false"),
                     ("'https:'!==location.protocol", "false"),
@@ -1126,6 +1109,18 @@ async def browser_proxy_http(request: Request, response: Response, path: str = "
             mt = "text/html" if "text/html" in content_type else "application/javascript"
             return Response(content=body_text, status_code=resp.status, headers=resp_headers, media_type=mt)
         
+        # For all other content types (images, CSS, etc.), stream directly
+        def iterfile():
+            try:
+                while True:
+                    chunk = resp.read(8192)
+                    if not chunk:
+                        break
+                    yield chunk
+            except Exception:
+                pass
+            finally:
+                resp.close()
         return StreamingResponse(iterfile(), status_code=resp.status, headers=resp_headers)
     except urllib.error.HTTPError as e:
         return Response(content=e.read(), status_code=e.code, headers=dict(e.headers))
