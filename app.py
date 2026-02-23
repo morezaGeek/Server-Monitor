@@ -1069,30 +1069,51 @@ async def browser_proxy_http(request: Request, response: Response, path: str = "
 
         content_type = resp_headers.get("Content-Type", resp_headers.get("content-type", ""))
         
-        # For HTML responses, inject a script to bypass KasmVNC's HTTPS requirement
-        # KasmVNC checks window.location.protocol client-side and refuses HTTP
-        if "text/html" in content_type:
+        # For HTML/JS responses, patch KasmVNC's client-side HTTPS requirement
+        # The check is in the bundled JS module and checks window.location.protocol
+        if "text/html" in content_type or "javascript" in content_type:
             body = resp.read()
             resp.close()
             body_text = body.decode("utf-8", errors="ignore")
             
-            https_bypass = """<script>
-// Bypass KasmVNC HTTPS requirement for reverse-proxy setups without SSL
+            if "javascript" in content_type:
+                # Neutralize HTTPS protocol checks in minified JS
+                # Common patterns: "https:"!==location.protocol  or  location.protocol!=="https:"
+                for old, new in [
+                    ('"https:"!==location.protocol', "false"),
+                    ('"https:" !== location.protocol', "false"),
+                    ('location.protocol!=="https:"', "false"),
+                    ('location.protocol !== "https:"', "false"),
+                    ("'https:'!==location.protocol", "false"),
+                    ("location.protocol!=='https:'", "false"),
+                    ('"https:"===location.protocol', "true"),
+                    ('location.protocol==="https:"', "true"),
+                ]:
+                    body_text = body_text.replace(old, new)
+            
+            if "text/html" in content_type:
+                # Also inject a script to hide any HTTPS error overlays
+                https_bypass = """<script>
 (function(){
-  try { Object.defineProperty(window,'isSecureContext',{get:()=>true,configurable:true}); } catch(e){}
-  // Hide the HTTPS error overlay if it appears
-  var obs = new MutationObserver(function(muts){
-    document.querySelectorAll('[class*="error"],[id*="error"]').forEach(function(el){
-      if(el.textContent && el.textContent.indexOf('HTTPS')!==-1) el.style.display='none';
+  try{Object.defineProperty(window,'isSecureContext',{get:()=>true,configurable:true})}catch(e){}
+  var h=function(){
+    document.querySelectorAll('div,p,span').forEach(function(el){
+      if(el.textContent&&el.textContent.indexOf('HTTPS')!==-1&&el.textContent.indexOf('secure')!==-1){
+        el.style.display='none';
+        if(el.parentElement)el.parentElement.style.display='none';
+      }
     });
-  });
-  obs.observe(document.body||document.documentElement, {childList:true, subtree:true});
+  };
+  setInterval(h,500);
+  document.addEventListener('DOMContentLoaded',h);
 })();
 </script>"""
-            body_text = body_text.replace("</head>", https_bypass + "</head>")
+                body_text = body_text.replace("</head>", https_bypass + "</head>")
+            
             resp_headers.pop("Content-Length", None)
             resp_headers.pop("content-length", None)
-            return Response(content=body_text, status_code=resp.status, headers=resp_headers, media_type="text/html")
+            mt = "text/html" if "text/html" in content_type else "application/javascript"
+            return Response(content=body_text, status_code=resp.status, headers=resp_headers, media_type=mt)
         
         return StreamingResponse(iterfile(), status_code=resp.status, headers=resp_headers)
     except urllib.error.HTTPError as e:
