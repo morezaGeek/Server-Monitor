@@ -1066,7 +1066,34 @@ async def browser_proxy_http(request: Request, response: Response, path: str = "
         for h in ["Transfer-Encoding", "Connection", "Content-Encoding"]:
             resp_headers.pop(h, None)
             resp_headers.pop(h.lower(), None)
+
+        content_type = resp_headers.get("Content-Type", resp_headers.get("content-type", ""))
+        
+        # For HTML responses, inject a script to bypass KasmVNC's HTTPS requirement
+        # KasmVNC checks window.location.protocol client-side and refuses HTTP
+        if "text/html" in content_type:
+            body = resp.read()
+            resp.close()
+            body_text = body.decode("utf-8", errors="ignore")
             
+            https_bypass = """<script>
+// Bypass KasmVNC HTTPS requirement for reverse-proxy setups without SSL
+(function(){
+  try { Object.defineProperty(window,'isSecureContext',{get:()=>true,configurable:true}); } catch(e){}
+  // Hide the HTTPS error overlay if it appears
+  var obs = new MutationObserver(function(muts){
+    document.querySelectorAll('[class*="error"],[id*="error"]').forEach(function(el){
+      if(el.textContent && el.textContent.indexOf('HTTPS')!==-1) el.style.display='none';
+    });
+  });
+  obs.observe(document.body||document.documentElement, {childList:true, subtree:true});
+})();
+</script>"""
+            body_text = body_text.replace("</head>", https_bypass + "</head>")
+            resp_headers.pop("Content-Length", None)
+            resp_headers.pop("content-length", None)
+            return Response(content=body_text, status_code=resp.status, headers=resp_headers, media_type="text/html")
+        
         return StreamingResponse(iterfile(), status_code=resp.status, headers=resp_headers)
     except urllib.error.HTTPError as e:
         return Response(content=e.read(), status_code=e.code, headers=dict(e.headers))
