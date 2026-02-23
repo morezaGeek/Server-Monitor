@@ -38,10 +38,12 @@ key.pem
 .DS_Store
 Thumbs.db
 
-# Temp/Debug scripts
+# Temp/Debug/Deploy scripts (contain server-specific credentials)
+deploy_*.py
+check_container.py
+push_to_github.py
+fix_nginx.py
 fetch_logs.py
 test_settings.py
 test_backup.db
 test_backup_91.db
-check_container.py
-deploy_disk_update.py

@@ -73,70 +73,9 @@ class BrowserManager:
         else:
             self._add_log("Docker is already installed.")
             
-        # 2. Add Nginx Configuration
-        self._add_log("Configuring Nginx reverse proxy...")
-        injector_script = """
-import os
-import re
-import glob
-
-nginx_conf = '''
-location /browser/ {
-    proxy_pass http://127.0.0.1:3000/;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    rewrite ^/browser/(.*) /$1 break;
-}'''
-
-files_to_check = []
-for pattern in ["/etc/nginx/sites-available/*", "/etc/nginx/conf.d/*.conf", "/etc/nginx/nginx.conf"]:
-    files_to_check.extend(glob.glob(pattern))
-
-updated = False
-for conf_path in set(files_to_check):
-    if not os.path.isfile(conf_path): continue
-    try:
-        with open(conf_path, "r") as f:
-            content = f.read()
-            
-        old_content = content
-        
-        # Iteratively remove existing location /browser/ {...} blocks
-        while True:
-            # We use a pattern to match the location block. Since {} can be nested, regex is tricky.
-            # But Nginx location blocks usually don't have nested {} except maybe ifs.
-            # We'll do a simple regex that matches until the first }
-            content_new = re.sub(r'\\n\\s*location\s+/browser/\s*\{[^}]*\}', '', content)
-            if content_new == content:
-                break
-            content = content_new
-
-        if re.search(r"server\\s*\\{", content) and "listen" in content:
-            matches = list(re.finditer(r"server\\s*\\{", content))
-            if matches:
-                for match in reversed(matches):
-                    idx = match.end()
-                    content = content[:idx] + "\\n" + nginx_conf + "\\n" + content[idx:]
-                
-        if content != old_content:
-            with open(conf_path, "w") as f:
-                f.write(content)
-            print("Updated: " + conf_path)
-            updated = True
-    except Exception as e:
-        print(f"Error checking {conf_path}: {e}")
-
-if not updated:
-    print("Checked Nginx configs. No changes made.")
-"""
-        await self.run_command(f"python3 -c {shlex.quote(injector_script)}")
-        await self.run_command("systemctl reload nginx")
-
+        # 2. Nginx configuration is NOT needed.
+        # All /browser/ traffic is proxied by FastAPI in app.py (HTTP + WebSocket).
+        # Adding a location /browser/ block to Nginx causes path conflicts.
         # 3. Pull image
         self._add_log("Pulling lscr.io/linuxserver/chromium image... (This may take a few minutes)")
         await self.run_command("docker pull lscr.io/linuxserver/chromium:latest")

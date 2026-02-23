@@ -48,18 +48,16 @@ The dashboard enforces secure **HTTP Basic Authentication**.
 During installation, the script will prompt you to create a secure **Username** and **Password**. 
 These credentials are automatically injected into the dashboard's environment via the systemd service.
 
-## ⚙️ Reconfiguration (Change Port/Credentials)
-If you ever need to change your Port, Username, or Password after installation, simply run:
+## ⚙️ Management (Uninstall / Reconfigure / Status)
+All management options are built into the same install script. Just run it again:
 ```bash
-sudo bash /opt/server-monitor/configure.sh
+curl -sL https://raw.githubusercontent.com/morezaGeek/Server-Monitor/main/install.sh | sudo bash
 ```
-
-## 🗑️ Uninstallation
-
-If you wish to completely remove the dashboard and its background service, run:
-```bash
-sudo bash /opt/server-monitor/uninstall.sh
-```
+The interactive menu will offer:
+1. 🚀 **Install / Update**
+2. 🗑️ **Uninstall**
+3. ⚙️ **Change Port / Credentials**
+4. 📋 **View Service Status**
 
 ## 🌐 Virtual Browser
 
