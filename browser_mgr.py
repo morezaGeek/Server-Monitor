@@ -3,10 +3,38 @@ import subprocess
 import json
 import os
 import shlex
+import socket
+
+BROWSER_PORT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".browser_port")
+
+def _find_free_port(start=3000, end=3020):
+    """Find a free port on localhost, trying start first."""
+    for port in range(start, end + 1):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(("127.0.0.1", port))
+                return port
+        except OSError:
+            continue
+    return None
+
+def _read_saved_port():
+    """Read the saved port from file."""
+    try:
+        if os.path.isfile(BROWSER_PORT_FILE):
+            return int(open(BROWSER_PORT_FILE).read().strip())
+    except:
+        pass
+    return 3000
+
+def get_browser_port():
+    """Get the port the browser container is mapped to."""
+    return _read_saved_port()
 
 class BrowserManager:
     def __init__(self):
         self.container_name = "server_monitor_browser"
+        self.container_port = _read_saved_port()
         self.log_queues = []
         self.log_history = []
         
@@ -83,12 +111,24 @@ class BrowserManager:
         # 4. Remove existing if any
         await self.run_command(f"docker rm -f {self.container_name} || true")
         
-        # 5. Run new container
+        # 5. Find a free port
+        port = _find_free_port()
+        if port is None:
+            self._add_log("❌ No free port found in range 3000-3020. Cannot start container.")
+            return
+        if port != 3000:
+            self._add_log(f"⚠ Port 3000 is in use. Using port {port} instead.")
+        
+        # Save the chosen port
+        with open(BROWSER_PORT_FILE, "w") as f:
+            f.write(str(port))
+        self.container_port = port
+        
+        # 6. Run new container
         user = shlex.quote(config.get("user", "admin"))
         password = shlex.quote(config.get("pass", "admin"))
         res = config.get("res", "2560x1440")
         
-        # For KasmVNC chromium, we map 3000 to internal 3000
         cmd = (f"docker run -d --name {self.container_name} "
                f"-e CUSTOM_USER={user} "
                f"-e PASSWORD={password} "
@@ -97,7 +137,7 @@ class BrowserManager:
                f"-e KASMVNC_INTERFACE=0.0.0.0 "
                f"-e KASM_INTERFACE=0.0.0.0 "
                f"-e DISABLE_IPV6=true "
-               f"-p 127.0.0.1:3000:3000 "
+               f"-p 127.0.0.1:{port}:3000 "
                f"--shm-size='1gb' "
                f"--restart unless-stopped "
                f"lscr.io/linuxserver/chromium:latest")

@@ -1032,7 +1032,7 @@ async def browser_proxy_http(request: Request, response: Response, path: str = "
     if path == "websockify":
         return Response(status_code=400)
     
-    url = f"http://127.0.0.1:3000/browser/{path}"
+    url = f"http://127.0.0.1:{browser_mgr.container_port}/browser/{path}"
     if request.url.query:
         url += "?" + request.url.query
         
@@ -1138,7 +1138,7 @@ async def browser_proxy_http(request: Request, response: Response, path: str = "
 @app.websocket("/browser/{path:path}")
 async def browser_proxy_ws(websocket: WebSocket, path: str):
     await websocket.accept()
-    target_url = f"http://127.0.0.1:3000/browser/{path}"
+    target_url = f"http://127.0.0.1:{browser_mgr.container_port}/browser/{path}"
     if websocket.query_params:
         target_url += "?" + str(websocket.query_params)
         
