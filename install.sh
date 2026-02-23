@@ -148,12 +148,33 @@ setup_ssl() {
                 return 1
             fi
             
-            # Copy to our SSL dir
-            mkdir -p "$SSL_DIR"
-            cp "$CERT_PATH" "$SSL_DIR/fullchain.pem"
-            cp "$KEY_PATH" "$SSL_DIR/privkey.pem"
+            # Try to detect domain from Let's Encrypt path
+            local DETECTED_DOMAIN=""
+            if echo "$CERT_PATH" | grep -qP '/letsencrypt/live/([^/]+)/'; then
+                DETECTED_DOMAIN=$(echo "$CERT_PATH" | grep -oP '/letsencrypt/live/\K[^/]+')
+            fi
             
-            write_service_file "$port" "$user" "$pass" "$SSL_DIR/fullchain.pem" "$SSL_DIR/privkey.pem" "custom"
+            if [ -n "$DETECTED_DOMAIN" ]; then
+                echo -e "  ${GREEN}✔ Detected domain: ${BOLD}$DETECTED_DOMAIN${NC}"
+                read -e -p "  🌐 Confirm domain [$DETECTED_DOMAIN]: " USER_DOMAIN < /dev/tty
+                CERT_DOMAIN=${USER_DOMAIN:-$DETECTED_DOMAIN}
+            else
+                read -e -p "  🌐 Domain for this certificate: " CERT_DOMAIN < /dev/tty
+                if [ -z "$CERT_DOMAIN" ]; then
+                    CERT_DOMAIN=$(hostname -I | awk '{print $1}')
+                fi
+            fi
+
+            # Use cert directly without copying if it's a letsencrypt path
+            if echo "$CERT_PATH" | grep -q "/letsencrypt/"; then
+                write_service_file "$port" "$user" "$pass" "$CERT_PATH" "$KEY_PATH" "$CERT_DOMAIN"
+            else
+                mkdir -p "$SSL_DIR"
+                cp "$CERT_PATH" "$SSL_DIR/fullchain.pem"
+                cp "$KEY_PATH" "$SSL_DIR/privkey.pem"
+                write_service_file "$port" "$user" "$pass" "$SSL_DIR/fullchain.pem" "$SSL_DIR/privkey.pem" "$CERT_DOMAIN"
+            fi
+            
             echo -e "  ${GREEN}✔ SSL configured with your certificate${NC}"
             return 0
             ;;
