@@ -1077,27 +1077,20 @@ async def browser_proxy_http(request: Request, response: Response, path: str = "
             body_text = body.decode("utf-8", errors="ignore")
             
             if "javascript" in content_type:
-                # Neutralize HTTPS protocol checks in minified JS
-                # Common patterns: "https:"!==location.protocol  or  location.protocol!=="https:"
+                # Patch the exact KasmVNC pre-flight check function Ll()
+                # The check is: window.isSecureContext ? typeof window.VideoDecoder>"u" ? (error) : (ok) : (error HTTPS)
+                # We replace window.isSecureContext with true, and VideoDecoder check with false
                 for old, new in [
+                    # Exact patterns from KasmVNC bundle index-CAzwT_Hb.js
+                    ('window.isSecureContext?typeof window.VideoDecoder>"u"', 'true?false'),
+                    ('window.isSecureContext&&navigator.clipboard', 'true&&navigator.clipboard'),
+                    # Generic patterns as fallback
                     ('"https:"!==location.protocol', "false"),
-                    ('"https:" !== location.protocol', "false"),
                     ('location.protocol!=="https:"', "false"),
-                    ('location.protocol !== "https:"', "false"),
                     ("'https:'!==location.protocol", "false"),
-                    ("location.protocol!=='https:'", "false"),
-                    ('"https:"===location.protocol', "true"),
-                    ('location.protocol==="https:"', "true"),
-                ]:
-                    body_text = body_text.replace(old, new)
-                # Also neutralize WebCodecs API checks
-                for old, new in [
                     ('typeof VideoDecoder>"u"', "false"),
                     ('typeof VideoDecoder==="undefined"', "false"),
-                    ("typeof VideoDecoder>'u'", "false"),
-                    ("typeof VideoDecoder==='undefined'", "false"),
-                    ('!window.VideoDecoder', "false"),
-                    ('!self.VideoDecoder', "false"),
+                    ('typeof window.VideoDecoder>"u"', "false"),
                 ]:
                     body_text = body_text.replace(old, new)
             
