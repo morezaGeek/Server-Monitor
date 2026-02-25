@@ -70,6 +70,29 @@
     --shadow-glow-net: 0 4px 20px rgba(16, 185, 129, 0.25);
 }
 
+/* ─── OLED Mode ──────────────────────────────────────────────────────────── */
+
+[data-theme="oled"] {
+    --bg-primary: #000000;
+    --bg-secondary: #000000;
+    --bg-card: #000000;
+    --bg-card-hover: #111111;
+    --border-color: #333333;
+    --border-glow: #444444;
+
+    --text-primary: #f1f5f9;
+    --text-secondary: #cbd5e1;
+    --text-muted: #64748b;
+
+    --shadow-sm: none;
+    --shadow-md: none;
+    --shadow-lg: none;
+    --shadow-glow-cpu: none;
+    --shadow-glow-ram: none;
+    --shadow-glow-disk: none;
+    --shadow-glow-net: none;
+}
+
 [data-theme="dark"] .header h1 {
     background: linear-gradient(135deg, #e2e8f0, #94a3b8);
     -webkit-background-clip: text;
@@ -1554,9 +1577,17 @@ body {
     font-weight: 600;
 }
 
-.proc-cpu-high { color: #ef4444; }
-.proc-cpu-med { color: #f59e0b; }
-.proc-cpu-low { color: #10b981; }
+.proc-cpu-high {
+    color: #ef4444;
+}
+
+.proc-cpu-med {
+    color: #f59e0b;
+}
+
+.proc-cpu-low {
+    color: #10b981;
+}
 
 .upload-wrapper .btn-db {
     width: 100%;
