@@ -1046,12 +1046,37 @@ body {
 
     .header {
         flex-direction: column;
+        align-items: stretch;
         gap: 12px;
         text-align: center;
     }
 
     .header-left {
         flex-direction: column;
+    }
+
+    .header-right {
+        display: flex;
+        justify-content: center;
+        width: 100%;
+    }
+
+    .header-badges {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+        width: 100%;
+    }
+
+    .load-badge,
+    .uptime-badge {
+        padding: 4px 10px;
+        font-size: 0.72rem;
+    }
+
+    .ssh-btn {
+        padding: 6px 14px;
+        font-size: 0.78rem;
     }
 
     .stats-grid {
