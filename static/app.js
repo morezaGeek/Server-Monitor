@@ -1053,6 +1053,7 @@
     // ─── Auto-Refresh ────────────────────────────────────────────────────────
 
     let topProcessesTimer = null;
+    let topProcInterval = 1000;
 
     async function fetchTopProcesses() {
         try {
@@ -1090,14 +1091,30 @@
         }
     }
 
+    function setupTopProcInterval() {
+        const select = document.getElementById("topProcRefresh");
+        if (select) {
+            select.addEventListener("change", (e) => {
+                topProcInterval = parseInt(e.target.value, 10) || 1000;
+                if (topProcessesTimer) {
+                    clearInterval(topProcessesTimer);
+                    fetchTopProcesses(); // fetch immediately
+                    topProcessesTimer = setInterval(fetchTopProcesses, topProcInterval);
+                }
+            });
+        }
+    }
+
     function startAutoRefresh() {
         // Live stats every 1 second
         statsTimer = setInterval(fetchCurrent, STATS_INTERVAL);
         // Charts every 30 seconds
         chartTimer = setInterval(fetchMetrics, CHART_INTERVAL);
-        // Top processes every 1 second
+
+        // Top processes
+        setupTopProcInterval();
         fetchTopProcesses();
-        topProcessesTimer = setInterval(fetchTopProcesses, 1000);
+        topProcessesTimer = setInterval(fetchTopProcesses, topProcInterval);
     }
 
     // ─── Initialize ──────────────────────────────────────────────────────────

@@ -441,14 +441,24 @@
             <div class="ext-card">
                 <div class="ext-header" style="margin-bottom: 15px;">
                     <div class="ext-title-area">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                            stroke-linecap="round" stroke-linejoin="round" style="color: #f43f5e;">
-                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #f43f5e;">
+                            <polygon
+                                points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2">
+                            </polygon>
                         </svg>
                         <div class="ext-titles">
                             <h3>Top Processes</h3>
                             <p>Most resource-intensive processes (CPU & RAM)</p>
                         </div>
+                    </div>
+                    <div class="ext-actions">
+                        <select id="topProcRefresh" class="iface-select" title="Refresh Interval">
+                            <option value="1000" selected>1 Second</option>
+                            <option value="2000">2 Seconds</option>
+                            <option value="5000">5 Seconds</option>
+                            <option value="10000">10 Seconds</option>
+                        </select>
                     </div>
                 </div>
                 <div class="process-table-container">
