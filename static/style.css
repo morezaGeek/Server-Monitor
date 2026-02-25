@@ -1477,6 +1477,87 @@ body {
     display: flex;
 }
 
+/* ─── Top Processes Area ───────────────────────────────────────────────────── */
+
+.processes-section {
+    margin-bottom: 30px;
+}
+
+.process-table-container {
+    overflow-x: auto;
+    margin-top: 15px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+}
+
+.process-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.process-table th {
+    background: rgba(0, 0, 0, 0.03);
+    color: var(--text-muted);
+    font-weight: 600;
+    padding: 10px 14px;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    letter-spacing: 0.05em;
+    border-bottom: 2px solid var(--border-color);
+}
+
+[data-theme="dark"] .process-table th {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.process-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-family: 'Inter', monospace;
+}
+
+.process-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.process-table tbody tr {
+    transition: background-color 0.15s;
+}
+
+.process-table tbody tr:hover {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+[data-theme="dark"] .process-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.proc-pid {
+    color: var(--text-muted) !important;
+}
+
+.proc-name {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.proc-user {
+    color: var(--cpu-start) !important;
+    font-weight: 500;
+}
+
+.proc-val {
+    font-weight: 600;
+}
+
+.proc-cpu-high { color: #ef4444; }
+.proc-cpu-med { color: #f59e0b; }
+.proc-cpu-low { color: #10b981; }
+
 .upload-wrapper .btn-db {
     width: 100%;
 }

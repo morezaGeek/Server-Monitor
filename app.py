@@ -841,6 +841,51 @@ async def get_metrics(range: str = Query("1h", pattern="^(1h|2h|6h|12h|1d|2d|1w|
     return JSONResponse(content={"range": range, "data": data, "totals": totals})
 
 
+# ─── Top Processes ───────────────────────────────────────────────────────────
+
+import time as _time
+_last_top_procs_time = 0
+_cached_top_procs = []
+
+@app.get("/api/top_processes")
+async def get_top_processes(username: str = Depends(get_current_username)):
+    """Return top 20 processes by CPU usage, cached for 1 second."""
+    global _last_top_procs_time, _cached_top_procs
+    now = _time.time()
+    
+    if now - _last_top_procs_time < 0.9 and _cached_top_procs:
+        return JSONResponse(content=_cached_top_procs)
+
+    processes = []
+    for p in psutil.process_iter(['pid', 'name', 'username', 'cpu_percent', 'memory_info']):
+        try:
+            info = p.info
+            mem_b = info['memory_info'].rss if info['memory_info'] else 0
+            # Convert memory to readable format
+            if mem_b > 1024**3:
+                mem_str = f"{mem_b / 1024**3:.1f}G"
+            else:
+                mem_str = f"{mem_b / 1024**2:.1f}M"
+
+            processes.append({
+                "pid": info['pid'],
+                "name": info['name'],
+                "user": info['username'] or 'unknown',
+                "cpu": info['cpu_percent'],
+                "mem": mem_str
+            })
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+
+    # Sort descending by CPU and keep top 20
+    processes.sort(key=lambda x: x['cpu'], reverse=True)
+    top_20 = processes[:20]
+
+    _cached_top_procs = top_20
+    _last_top_procs_time = now
+
+    return JSONResponse(content=top_20)
+
 # ─── SSH Terminal ────────────────────────────────────────────────────────────
 
 @app.websocket("/api/ssh")

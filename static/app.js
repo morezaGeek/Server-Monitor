@@ -1052,11 +1052,52 @@
 
     // ─── Auto-Refresh ────────────────────────────────────────────────────────
 
+    let topProcessesTimer = null;
+
+    async function fetchTopProcesses() {
+        try {
+            const res = await fetch("/api/top_processes");
+            const data = await res.json();
+
+            const tbody = document.getElementById("topProcessesBody");
+            if (!tbody) return;
+
+            if (data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px;">No processes found</td></tr>`;
+                return;
+            }
+
+            // Build HTML
+            const rowsHtml = data.map(p => {
+                let cpuClass = "proc-cpu-low";
+                if (p.cpu > 50) cpuClass = "proc-cpu-high";
+                else if (p.cpu > 15) cpuClass = "proc-cpu-med";
+
+                return `
+                <tr>
+                    <td class="proc-pid">#${p.pid}</td>
+                    <td class="proc-name">${p.name}</td>
+                    <td class="proc-user">${p.user}</td>
+                    <td style="text-align: right;" class="proc-val">${p.mem}</td>
+                    <td style="text-align: right;" class="proc-val ${cpuClass}">${p.cpu.toFixed(1)}%</td>
+                </tr>
+               `;
+            }).join('');
+
+            tbody.innerHTML = rowsHtml;
+        } catch (err) {
+            console.error("Failed to fetch top processes:", err);
+        }
+    }
+
     function startAutoRefresh() {
         // Live stats every 1 second
         statsTimer = setInterval(fetchCurrent, STATS_INTERVAL);
         // Charts every 30 seconds
         chartTimer = setInterval(fetchMetrics, CHART_INTERVAL);
+        // Top processes every 1 second
+        fetchTopProcesses();
+        topProcessesTimer = setInterval(fetchTopProcesses, 1000);
     }
 
     // ─── Initialize ──────────────────────────────────────────────────────────

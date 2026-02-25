@@ -436,6 +436,44 @@
             </div>
         </section>
 
+        <!-- Top Processes Area -->
+        <section class="processes-section">
+            <div class="ext-card">
+                <div class="ext-header" style="margin-bottom: 15px;">
+                    <div class="ext-title-area">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round" style="color: #f43f5e;">
+                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                        </svg>
+                        <div class="ext-titles">
+                            <h3>Top Processes</h3>
+                            <p>Most resource-intensive processes (CPU & RAM)</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="process-table-container">
+                    <table class="process-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 80px;">PID</th>
+                                <th>Command / Process</th>
+                                <th style="width: 100px;">User</th>
+                                <th style="text-align: right; width: 80px;">Mem</th>
+                                <th style="text-align: right; width: 80px;">CPU %</th>
+                            </tr>
+                        </thead>
+                        <tbody id="topProcessesBody">
+                            <tr>
+                                <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px;">
+                                    Loading top processes...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
         <!-- Extensions Area -->
         <section class="extensions-section">
             <div class="ext-card">
