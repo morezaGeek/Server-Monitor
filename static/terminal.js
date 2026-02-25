@@ -29,6 +29,17 @@ document.addEventListener('DOMContentLoaded', () => {
     let ws = null;
     let authSent = false;
 
+    // Register keystroke handler ONCE (outside connectWebSocket)
+    // This prevents duplicate handlers from stacking on reconnect
+    term.onData(data => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+                type: 'data',
+                data: data
+            }));
+        }
+    });
+
     function showSpinner(text) {
         spinnerText.textContent = text;
         spinnerOverlay.style.display = 'flex';
@@ -65,6 +76,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function connectWebSocket(credentials) {
+        // Close any existing connection first
+        if (ws) {
+            try { ws.close(); } catch(e) {}
+            ws = null;
+        }
+
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/api/ssh`;
 
@@ -132,16 +149,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 showError("WebSocket error. Check connection to panel.");
             }
         };
-
-        // Send keystrokes to the server
-        term.onData(data => {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                    type: 'data',
-                    data: data
-                }));
-            }
-        });
     }
 
     // Handle window resize
