@@ -569,11 +569,22 @@ body {
     justify-content: space-between;
     margin-bottom: 28px;
     padding: 16px 24px;
+    position: relative;
+    z-index: 200;
+}
+
+.header::before {
+    content: "";
+    position: absolute;
+    inset: 0;
     background: var(--bg-card);
     backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-md);
+    z-index: -1;
+    pointer-events: none;
 }
 
 .header-left {
