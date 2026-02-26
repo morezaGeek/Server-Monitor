@@ -177,7 +177,7 @@
     text-decoration: none;
     border-radius: 100px;
     font-size: 0.85rem;
-    font-weight: 600;
+    font-weight: 400;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
@@ -323,7 +323,7 @@ body {
 
 .header h1 {
     font-size: 1.35rem;
-    font-weight: 700;
+    font-weight: 500;
     letter-spacing: -0.02em;
     background: linear-gradient(135deg, #1e293b, #475569);
     -webkit-background-clip: text;
@@ -352,13 +352,13 @@ body {
     border: 1px solid rgba(99, 102, 241, 0.2);
     border-radius: 100px;
     font-size: 0.78rem;
-    font-weight: 500;
+    font-weight: 300;
     color: #818cf8;
 }
 
 .load-label {
     color: #64748b;
-    font-weight: 400;
+    font-weight: 300;
 }
 
 .uptime-badge {
@@ -370,7 +370,7 @@ body {
     border: 1px solid rgba(16, 185, 129, 0.2);
     border-radius: 100px;
     font-size: 0.78rem;
-    font-weight: 500;
+    font-weight: 300;
     color: #34d399;
 }
 
@@ -473,7 +473,7 @@ body {
 .cpu-model {
     text-align: center;
     font-size: 0.82rem;
-    font-weight: 700;
+    font-weight: 500;
     margin: -6px 0 16px 0;
     color: transparent;
     background: linear-gradient(90deg, var(--cpu-start), var(--cpu-end));
@@ -514,7 +514,7 @@ body {
 
 .stat-label {
     font-size: 0.95rem;
-    font-weight: 600;
+    font-weight: 400;
     color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -578,13 +578,13 @@ body {
 
 .gauge-number {
     font-size: 2.1rem;
-    font-weight: 700;
+    font-weight: 500;
     line-height: 1;
 }
 
 .gauge-unit {
     font-size: 0.95rem;
-    font-weight: 500;
+    font-weight: 300;
     color: var(--text-muted);
     margin-top: 4px;
 }
@@ -613,7 +613,7 @@ body {
     justify-content: center;
     border-radius: var(--radius-sm);
     font-size: 1.1rem;
-    font-weight: 700;
+    font-weight: 500;
 }
 
 .net-arrow-up {
@@ -628,7 +628,7 @@ body {
 
 .net-value {
     font-size: 1.1rem;
-    font-weight: 700;
+    font-weight: 500;
     display: block;
 }
 
@@ -662,7 +662,7 @@ body {
 
 .stat-detail span:last-child {
     color: var(--text-primary);
-    font-weight: 600;
+    font-weight: 400;
 }
 
 /* ─── Range Selector ─────────────────────────────────────────────────────── */
@@ -691,9 +691,9 @@ body {
     border: none;
     background: transparent;
     color: var(--text-muted);
-    font-family: 'Inter', sans-serif;
+    
     font-size: 0.82rem;
-    font-weight: 500;
+    font-weight: 300;
     border-radius: var(--radius-sm);
     cursor: pointer;
     transition: all 0.25s ease;
@@ -784,7 +784,7 @@ body {
 
 .chart-header h3 {
     font-size: 0.95rem;
-    font-weight: 600;
+    font-weight: 400;
     color: var(--text-primary);
 }
 
@@ -792,7 +792,7 @@ body {
     padding: 3px 10px;
     border-radius: 100px;
     font-size: 0.72rem;
-    font-weight: 600;
+    font-weight: 400;
 }
 
 .chart-badge-cpu {
@@ -860,7 +860,7 @@ body {
 
 .net-range-total {
     font-size: 0.75rem;
-    font-weight: 500;
+    font-weight: 300;
     color: var(--text-muted);
     background: rgba(16, 185, 129, 0.08);
     padding: 3px 8px;
@@ -870,7 +870,7 @@ body {
 
 .net-range-total span {
     color: #059669;
-    font-weight: 600;
+    font-weight: 400;
 }
 
 .net-max-input {
@@ -882,7 +882,7 @@ body {
 }
 
 .net-max-input label {
-    font-weight: 500;
+    font-weight: 300;
 }
 
 .net-max-input input {
@@ -892,7 +892,7 @@ body {
     border-radius: 6px;
     background: var(--bg-card);
     color: var(--text-primary);
-    font-family: 'Inter', sans-serif;
+    
     font-size: 0.75rem;
     text-align: center;
     outline: none;
@@ -904,7 +904,7 @@ body {
 }
 
 .net-max-input span {
-    font-weight: 500;
+    font-weight: 300;
 }
 
 .chart-wrapper {
@@ -938,9 +938,9 @@ body {
     border-radius: 8px;
     background: var(--bg-card);
     color: var(--text-primary);
-    font-family: 'Inter', sans-serif;
+    
     font-size: 0.78rem;
-    font-weight: 500;
+    font-weight: 300;
     cursor: pointer;
     outline: none;
     transition: border-color 0.2s;
@@ -961,7 +961,7 @@ body {
 
 .cpu-cores-label {
     font-size: 0.75rem;
-    font-weight: 600;
+    font-weight: 400;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -983,7 +983,7 @@ body {
 
 .cpu-core-label {
     font-size: 0.6rem;
-    font-weight: 600;
+    font-weight: 400;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.02em;
@@ -1036,7 +1036,7 @@ body {
 
 .cpu-core-percent {
     font-size: 0.68rem;
-    font-weight: 700;
+    font-weight: 500;
     color: var(--text-primary);
     line-height: 1;
 }
@@ -1231,8 +1231,8 @@ body {
     color: var(--cpu-end);
     border: 1px solid rgba(99, 102, 241, 0.2);
     border-radius: var(--radius-md);
-    font-family: 'Inter', sans-serif;
-    font-weight: 600;
+    
+    font-weight: 400;
     font-size: 0.85rem;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -1263,7 +1263,7 @@ body {
 
 .benchmark-result {
     font-size: 0.85rem;
-    font-weight: 600;
+    font-weight: 400;
     color: var(--text-primary);
     background: rgba(0, 0, 0, 0.03);
     padding: 4px 12px;
@@ -1276,7 +1276,7 @@ body {
 
 #benchmarkScore {
     color: var(--cpu-start);
-    font-weight: 700;
+    font-weight: 500;
 }
 
 /* ─── Overlays & Modals ────────────────────────────────────────────────── */
@@ -1328,7 +1328,7 @@ body {
 
 .login-header h2 {
     font-size: 1.5rem;
-    font-weight: 700;
+    font-weight: 500;
     color: var(--text-primary);
     margin-bottom: 5px;
 }
@@ -1364,7 +1364,7 @@ body {
 .form-group label {
     display: block;
     font-size: 0.82rem;
-    font-weight: 600;
+    font-weight: 400;
     color: var(--text-secondary);
     margin-bottom: 6px;
 }
@@ -1402,7 +1402,7 @@ body {
     color: white;
     border: none;
     border-radius: var(--radius-md);
-    font-weight: 600;
+    font-weight: 400;
     font-size: 0.95rem;
     cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s;
@@ -1465,7 +1465,7 @@ body {
     border-radius: var(--radius-md);
     color: var(--text-primary);
     font-family: inherit;
-    font-weight: 500;
+    font-weight: 300;
     font-size: 0.85rem;
     cursor: pointer;
     transition: all 0.2s;
@@ -1524,7 +1524,7 @@ body {
 .process-table th {
     background: rgba(0, 0, 0, 0.03);
     color: var(--text-muted);
-    font-weight: 600;
+    font-weight: 400;
     padding: 10px 14px;
     text-transform: uppercase;
     font-size: 0.72rem;
@@ -1564,17 +1564,17 @@ body {
 }
 
 .proc-name {
-    font-weight: 500;
+    font-weight: 300;
     color: var(--text-primary);
 }
 
 .proc-user {
     color: var(--cpu-start) !important;
-    font-weight: 500;
+    font-weight: 300;
 }
 
 .proc-val {
-    font-weight: 600;
+    font-weight: 400;
 }
 
 .proc-cpu-high {
@@ -1628,7 +1628,7 @@ body {
 .ext-titles h3 {
     font-size: 1.1rem;
     color: var(--text-primary);
-    font-weight: 600;
+    font-weight: 400;
     margin-bottom: 4px;
 }
 
