@@ -80,9 +80,9 @@
     --border-color: #333333;
     --border-glow: #444444;
 
-    --text-primary: #f1f5f9;
-    --text-secondary: #cbd5e1;
-    --text-muted: #64748b;
+    --text-primary: #ffffff;
+    --text-secondary: #e2e8f0;
+    --text-muted: #94a3b8;
 
     --shadow-sm: none;
     --shadow-md: none;
@@ -93,55 +93,118 @@
     --shadow-glow-net: none;
 }
 
-[data-theme="dark"] .header h1 {
+[data-theme="oled"] .header h1 {
+    background: linear-gradient(135deg, #ffffff, #cbd5e1);
+    -webkit-background-clip: text;
+    background-clip: text;
+}
+
+[data-theme="oled"] .load-badge {
+    color: #c7d2fe;
+}
+
+[data-theme="oled"] .load-label {
+    color: #cbd5e1;
+}
+
+[data-theme="oled"] .uptime-badge {
+    color: #a7f3d0;
+}
+
+[data-theme="oled"] .range-btn {
+    color: #cbd5e1;
+}
+
+[data-theme="oled"] .net-max-input label {
+    color: #cbd5e1;
+}
+
+[data-theme="dark"] .header h1,
+[data-theme="oled"] .header h1 {
     background: linear-gradient(135deg, #e2e8f0, #94a3b8);
     -webkit-background-clip: text;
     background-clip: text;
 }
 
-[data-theme="dark"] .gauge-bg {
+[data-theme="dark"] .gauge-bg,
+[data-theme="oled"] .gauge-bg {
     stroke: rgba(255, 255, 255, 0.08);
 }
 
-[data-theme="dark"] .load-badge {
+[data-theme="dark"] .load-badge,
+[data-theme="oled"] .load-badge {
     background: rgba(99, 102, 241, 0.15);
     border-color: rgba(99, 102, 241, 0.3);
     color: #a5b4fc;
 }
 
-[data-theme="dark"] .load-label {
+[data-theme="dark"] .load-label,
+[data-theme="oled"] .load-label {
     color: #94a3b8;
 }
 
-[data-theme="dark"] .uptime-badge {
+[data-theme="dark"] .uptime-badge,
+[data-theme="oled"] .uptime-badge {
     background: rgba(16, 185, 129, 0.15);
     border-color: rgba(16, 185, 129, 0.3);
     color: #6ee7b7;
 }
 
-[data-theme="dark"] .range-btn {
+[data-theme="dark"] .range-btn,
+[data-theme="oled"] .range-btn {
     color: #94a3b8;
 }
 
-[data-theme="dark"] .range-btn:hover {
+[data-theme="dark"] .range-btn:hover,
+[data-theme="oled"] .range-btn:hover {
     color: #f1f5f9;
     background: rgba(255, 255, 255, 0.06);
 }
 
-[data-theme="dark"] .iface-select {
+[data-theme="dark"] .iface-select,
+[data-theme="oled"] .iface-select {
     background: var(--bg-secondary);
     color: var(--text-primary);
     border-color: var(--border-color);
 }
 
-[data-theme="dark"] .net-max-input input {
+[data-theme="dark"] .net-max-input input,
+[data-theme="oled"] .net-max-input input {
     background: var(--bg-secondary);
     color: var(--text-primary);
     border-color: var(--border-color);
 }
 
-[data-theme="dark"] .bg-orb {
+[data-theme="dark"] .bg-orb,
+[data-theme="oled"] .bg-orb {
     opacity: 0.06;
+}
+
+/* High contrast overrides specifically for OLED */
+[data-theme="oled"] .header h1 {
+    background: linear-gradient(135deg, #ffffff, #cbd5e1);
+    -webkit-background-clip: text;
+    background-clip: text;
+}
+
+[data-theme="oled"] .load-badge {
+    color: #c7d2fe;
+}
+
+[data-theme="oled"] .load-label {
+    color: #cbd5e1;
+}
+
+[data-theme="oled"] .uptime-badge {
+    color: #a7f3d0;
+}
+
+[data-theme="oled"] .range-btn {
+    color: #cbd5e1;
+}
+
+[data-theme="oled"] .net-max-input label {
+    color: #cbd5e1;
 }
 
 /* Dark mode toggle button */
@@ -691,7 +754,7 @@ body {
     border: none;
     background: transparent;
     color: var(--text-muted);
-    
+
     font-size: 0.82rem;
     font-weight: 300;
     border-radius: var(--radius-sm);
@@ -892,7 +955,7 @@ body {
     border-radius: 6px;
     background: var(--bg-card);
     color: var(--text-primary);
-    
+
     font-size: 0.75rem;
     text-align: center;
     outline: none;
@@ -938,7 +1001,7 @@ body {
     border-radius: 8px;
     background: var(--bg-card);
     color: var(--text-primary);
-    
+
     font-size: 0.78rem;
     font-weight: 300;
     cursor: pointer;
@@ -1231,7 +1294,7 @@ body {
     color: var(--cpu-end);
     border: 1px solid rgba(99, 102, 241, 0.2);
     border-radius: var(--radius-md);
-    
+
     font-weight: 400;
     font-size: 0.85rem;
     cursor: pointer;
