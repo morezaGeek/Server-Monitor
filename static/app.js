@@ -1123,7 +1123,7 @@
 
     function isDarkMode() {
         const t = document.documentElement.getAttribute("data-theme");
-        return t === "dark" || t === "oled";
+        return t !== "light"; // All other themes are dark-based, so chart grids should be dark colored
     }
 
     function updateChartColors() {
@@ -1142,55 +1142,76 @@
     }
 
     function setupThemeToggle() {
-        const btn = document.getElementById("themeToggle");
-        if (!btn) return;
+        const btn = document.getElementById("themeDropdownBtn");
+        const menu = document.getElementById("themeMenu");
+        const nameDisplay = document.getElementById("currentThemeName");
+        if (!btn || !menu || !nameDisplay) return;
 
-        // Restore saved preference
-        let currentTheme = localStorage.getItem("sm-theme") || "light";
+        let currentTheme = localStorage.getItem("sm-theme") || "dark";
         document.documentElement.setAttribute("data-theme", currentTheme);
 
-        const getIconSVG = (theme) => {
-            if (theme === "dark") {
-                // Moon
-                return `<svg id="themeIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-                        </svg>`;
-            } else if (theme === "oled") {
-                // Pitch black / Terminal (Monitor)
-                return `<svg id="themeIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                            <line x1="8" y1="21" x2="16" y2="21"></line>
-                            <line x1="12" y1="17" x2="12" y2="21"></line>
-                        </svg>`;
-            }
-            // Sun (Light)
-            return `<svg id="themeIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="5"></circle>
-                        <line x1="12" y1="1" x2="12" y2="3"></line>
-                        <line x1="12" y1="21" x2="12" y2="23"></line>
-                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                        <line x1="1" y1="12" x2="3" y2="12"></line>
-                        <line x1="21" y1="12" x2="23" y2="12"></line>
-                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-                    </svg>`;
-        };
-        btn.innerHTML = getIconSVG(currentTheme);
+        const options = menu.querySelectorAll(".theme-option");
 
-        btn.addEventListener("click", () => {
-            if (currentTheme === "light") {
-                currentTheme = "dark";
-            } else if (currentTheme === "dark") {
-                currentTheme = "oled";
-            } else {
-                currentTheme = "light";
-            }
+        function updateDisplay(themeVal) {
+            options.forEach(opt => {
+                if (opt.getAttribute("data-value") === themeVal) {
+                    nameDisplay.innerHTML = opt.innerHTML;
+                    opt.classList.add("selected");
+                } else {
+                    opt.classList.remove("selected");
+                }
+            });
+        }
 
-            document.documentElement.setAttribute("data-theme", currentTheme);
-            btn.innerHTML = getIconSVG(currentTheme);
-            localStorage.setItem("sm-theme", currentTheme);
-            updateChartColors();
+        updateDisplay(currentTheme);
+
+        // Toggle menu
+        btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const expanded = btn.getAttribute("aria-expanded") === "true";
+            btn.setAttribute("aria-expanded", !expanded);
+            btn.classList.toggle("active");
+            menu.classList.toggle("show");
+        });
+
+        // Close when clicking outside
+        document.addEventListener("click", (e) => {
+            if (!menu.contains(e.target) && !btn.contains(e.target)) {
+                btn.setAttribute("aria-expanded", "false");
+                btn.classList.remove("active");
+                menu.classList.remove("show");
+            }
+        });
+
+        // Handle selection
+        options.forEach(opt => {
+            opt.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const selectedVal = opt.getAttribute("data-value");
+                currentTheme = selectedVal;
+
+                document.documentElement.setAttribute("data-theme", currentTheme);
+                updateDisplay(currentTheme);
+                localStorage.setItem("sm-theme", currentTheme);
+                updateChartColors();
+
+                btn.setAttribute("aria-expanded", "false");
+                btn.classList.remove("active");
+                menu.classList.remove("show");
+            });
+
+            // Live preview on hover
+            opt.addEventListener("mouseenter", () => {
+                const previewVal = opt.getAttribute("data-value");
+                document.documentElement.setAttribute("data-theme", previewVal);
+                updateChartColors();
+            });
+
+            // Revert preview on mouse leave
+            opt.addEventListener("mouseleave", () => {
+                document.documentElement.setAttribute("data-theme", currentTheme);
+                updateChartColors();
+            });
         });
     }
 

@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=35">
+    <link rel="stylesheet" href="/static/style.css?v=36">
 </head>
 
 <body>
@@ -75,21 +75,25 @@
                         </svg>
                         Settings
                     </button>
-                    <button class="theme-toggle" id="themeToggle" title="Toggle theme">
-                        <!-- Default icon, JS will update -->
-                        <svg id="themeIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="5"></circle>
-                            <line x1="12" y1="1" x2="12" y2="3"></line>
-                            <line x1="12" y1="21" x2="12" y2="23"></line>
-                            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                            <line x1="1" y1="12" x2="3" y2="12"></line>
-                            <line x1="21" y1="12" x2="23" y2="12"></line>
-                            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-                        </svg>
-                    </button>
+                    <div class="theme-dropdown-container" id="themeDropdownContainer">
+                        <button class="theme-dropdown-btn" id="themeDropdownBtn" title="Select Theme"
+                            aria-haspopup="listbox" aria-expanded="false">
+                            <span class="theme-name-display" id="currentThemeName">☀️ Light</span>
+                            <svg class="chevron-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+                        <ul class="theme-menu" id="themeMenu" role="listbox" aria-labelledby="themeDropdownBtn">
+                            <li role="option" data-value="light" class="theme-option">☀️ Light</li>
+                            <li role="option" data-value="dark" class="theme-option">🌙 Dark</li>
+                            <li role="option" data-value="oled" class="theme-option">🖥️ OLED Black</li>
+                            <li role="option" data-value="tokyo-night" class="theme-option">🌃 Tokyo Night</li>
+                            <li role="option" data-value="monokai" class="theme-option">🎨 Monokai</li>
+                            <li role="option" data-value="synthwave" class="theme-option">📻 SynthWave '84</li>
+                            <li role="option" data-value="dracula" class="theme-option">🧛 Dracula</li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </header>
@@ -708,7 +712,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script
         src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-    <script src="/static/app.js?v=40"></script>
+    <script src="/static/app.js?v=41"></script>
 </body>
 
 </html>

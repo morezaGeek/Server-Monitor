@@ -49,7 +49,11 @@
 
 /* ─── Dark Mode ──────────────────────────────────────────────────────────── */
 
-[data-theme="dark"] {
+[data-theme="dark"],
+[data-theme="tokyo-night"],
+[data-theme="monokai"],
+[data-theme="synthwave"],
+[data-theme="dracula"] {
     --bg-primary: #0f172a;
     --bg-secondary: #1e293b;
     --bg-card: rgba(30, 41, 59, 0.85);
@@ -93,6 +97,84 @@
     --shadow-glow-net: none;
 }
 
+
+/* ─── Tokyo Night ───────────────────────────────────────────────────────── */
+[data-theme="tokyo-night"] {
+    --bg-primary: #1a1b26;
+    --bg-secondary: #24283b;
+    --bg-card: rgba(36, 40, 59, 0.85);
+    --bg-card-hover: rgba(36, 40, 59, 0.95);
+    --border-color: rgba(65, 72, 104, 0.5);
+    --border-glow: rgba(122, 162, 247, 0.35);
+
+    --text-primary: #c0caf5;
+    --text-secondary: #a9b1d6;
+    --text-muted: #565f89;
+
+    --cpu-start: #7aa2f7; --cpu-end: #7dcfff;
+    --ram-start: #bb9af7; --ram-end: #9d7cd8;
+    --disk-start: #ff9e64; --disk-end: #e0af68;
+    --net-start: #9ece6a; --net-end: #73daca;
+}
+
+/* ─── Monokai ───────────────────────────────────────────────────────────── */
+[data-theme="monokai"] {
+    --bg-primary: #272822;
+    --bg-secondary: #3e3d32;
+    --bg-card: rgba(62, 61, 50, 0.85);
+    --bg-card-hover: rgba(62, 61, 50, 0.95);
+    --border-color: rgba(117, 113, 94, 0.5);
+    --border-glow: rgba(249, 38, 114, 0.35);
+
+    --text-primary: #f8f8f2;
+    --text-secondary: #e6db74;
+    --text-muted: #75715e;
+
+    --cpu-start: #f92672; --cpu-end: #fd971f;
+    --ram-start: #ae81ff; --ram-end: #66d9ef;
+    --disk-start: #e6db74; --disk-end: #a6e22e;
+    --net-start: #a6e22e; --net-end: #a6e22e;
+}
+
+/* ─── SynthWave '84 ─────────────────────────────────────────────────────── */
+[data-theme="synthwave"] {
+    --bg-primary: #262335;
+    --bg-secondary: #241b2f;
+    --bg-card: rgba(36, 27, 47, 0.85);
+    --bg-card-hover: rgba(36, 27, 47, 0.95);
+    --border-color: rgba(255, 126, 219, 0.2);
+    --border-glow: rgba(255, 126, 219, 0.35);
+
+    --text-primary: #ffffff;
+    --text-secondary: #f92aad;
+    --text-muted: #848bbd;
+
+    --cpu-start: #ff7edb; --cpu-end: #f92aad;
+    --ram-start: #36f9f6; --ram-end: #b893ce;
+    --disk-start: #fede5d; --disk-end: #ff7edb;
+    --net-start: #72f1b8; --net-end: #03edf9;
+}
+
+/* ─── Dracula ───────────────────────────────────────────────────────────── */
+[data-theme="dracula"] {
+    --bg-primary: #282a36;
+    --bg-secondary: #44475a;
+    --bg-card: rgba(68, 71, 90, 0.85);
+    --bg-card-hover: rgba(68, 71, 90, 0.95);
+    --border-color: rgba(98, 114, 164, 0.5);
+    --border-glow: rgba(189, 147, 249, 0.35);
+
+    --text-primary: #f8f8f2;
+    --text-secondary: #8be9fd;
+    --text-muted: #6272a4;
+
+    --cpu-start: #ff79c6; --cpu-end: #bd93f9;
+    --ram-start: #bd93f9; --ram-end: #ffb86c;
+    --disk-start: #ffb86c; --disk-end: #f1fa8c;
+    --net-start: #50fa7b; --net-end: #8be9fd;
+}
+
+
 [data-theme="oled"] .header h1 {
     background: linear-gradient(135deg, #ffffff, #cbd5e1);
     -webkit-background-clip: text;
@@ -120,6 +202,10 @@
 }
 
 [data-theme="dark"] .header h1,
+[data-theme="tokyo-night"] .header h1,
+[data-theme="monokai"] .header h1,
+[data-theme="synthwave"] .header h1,
+[data-theme="dracula"] .header h1,
 [data-theme="oled"] .header h1 {
     background: linear-gradient(135deg, #e2e8f0, #94a3b8);
     -webkit-background-clip: text;
@@ -127,11 +213,19 @@
 }
 
 [data-theme="dark"] .gauge-bg,
+[data-theme="tokyo-night"] .gauge-bg,
+[data-theme="monokai"] .gauge-bg,
+[data-theme="synthwave"] .gauge-bg,
+[data-theme="dracula"] .gauge-bg,
 [data-theme="oled"] .gauge-bg {
     stroke: rgba(255, 255, 255, 0.08);
 }
 
 [data-theme="dark"] .load-badge,
+[data-theme="tokyo-night"] .load-badge,
+[data-theme="monokai"] .load-badge,
+[data-theme="synthwave"] .load-badge,
+[data-theme="dracula"] .load-badge,
 [data-theme="oled"] .load-badge {
     background: rgba(99, 102, 241, 0.15);
     border-color: rgba(99, 102, 241, 0.3);
@@ -139,11 +233,19 @@
 }
 
 [data-theme="dark"] .load-label,
+[data-theme="tokyo-night"] .load-label,
+[data-theme="monokai"] .load-label,
+[data-theme="synthwave"] .load-label,
+[data-theme="dracula"] .load-label,
 [data-theme="oled"] .load-label {
     color: #94a3b8;
 }
 
 [data-theme="dark"] .uptime-badge,
+[data-theme="tokyo-night"] .uptime-badge,
+[data-theme="monokai"] .uptime-badge,
+[data-theme="synthwave"] .uptime-badge,
+[data-theme="dracula"] .uptime-badge,
 [data-theme="oled"] .uptime-badge {
     background: rgba(16, 185, 129, 0.15);
     border-color: rgba(16, 185, 129, 0.3);
@@ -151,17 +253,29 @@
 }
 
 [data-theme="dark"] .range-btn,
+[data-theme="tokyo-night"] .range-btn,
+[data-theme="monokai"] .range-btn,
+[data-theme="synthwave"] .range-btn,
+[data-theme="dracula"] .range-btn,
 [data-theme="oled"] .range-btn {
     color: #94a3b8;
 }
 
 [data-theme="dark"] .range-btn:hover,
+[data-theme="tokyo-night"] .range-btn:hover,
+[data-theme="monokai"] .range-btn:hover,
+[data-theme="synthwave"] .range-btn:hover,
+[data-theme="dracula"] .range-btn:hover,
 [data-theme="oled"] .range-btn:hover {
     color: #f1f5f9;
     background: rgba(255, 255, 255, 0.06);
 }
 
 [data-theme="dark"] .iface-select,
+[data-theme="tokyo-night"] .iface-select,
+[data-theme="monokai"] .iface-select,
+[data-theme="synthwave"] .iface-select,
+[data-theme="dracula"] .iface-select,
 [data-theme="oled"] .iface-select {
     background: var(--bg-secondary);
     color: var(--text-primary);
@@ -169,6 +283,10 @@
 }
 
 [data-theme="dark"] .net-max-input input,
+[data-theme="tokyo-night"] .net-max-input input,
+[data-theme="monokai"] .net-max-input input,
+[data-theme="synthwave"] .net-max-input input,
+[data-theme="dracula"] .net-max-input input,
 [data-theme="oled"] .net-max-input input {
     background: var(--bg-secondary);
     color: var(--text-primary);
@@ -176,6 +294,10 @@
 }
 
 [data-theme="dark"] .bg-orb,
+[data-theme="tokyo-night"] .bg-orb,
+[data-theme="monokai"] .bg-orb,
+[data-theme="synthwave"] .bg-orb,
+[data-theme="dracula"] .bg-orb,
 [data-theme="oled"] .bg-orb {
     opacity: 0.06;
 }
@@ -207,26 +329,91 @@
     color: #cbd5e1;
 }
 
-/* Dark mode toggle button */
-.theme-toggle {
+/* Theme Dropdown */
+.theme-dropdown-container {
+    position: relative;
     display: flex;
     align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    border: 1px solid var(--border-color);
-    border-radius: 50%;
-    background: var(--bg-card);
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: all 0.3s ease;
-    font-size: 1.1rem;
 }
 
-.theme-toggle:hover {
+.theme-dropdown-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xl);
     color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+}
+
+.theme-dropdown-btn:hover,
+.theme-dropdown-btn.active {
     border-color: var(--border-glow);
     background: var(--bg-card-hover);
+}
+
+.chevron-icon {
+    transition: transform 0.2s;
+}
+
+.theme-dropdown-btn.active .chevron-icon {
+    transform: rotate(180deg);
+}
+
+.theme-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 170px;
+    background: var(--bg-card);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    list-style: none;
+    padding: 6px;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-5px);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.theme-menu.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.theme-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    transition: all 0.15s;
+    user-select: none;
+}
+
+.theme-option:hover {
+    background: rgba(128, 128, 128, 0.1);
+    color: var(--text-primary);
+}
+
+.theme-option.selected {
+    background: var(--border-glow);
+    color: var(--text-primary);
+    font-weight: 600;
 }
 
 /* SSH button */
@@ -1065,7 +1252,11 @@ body {
     position: relative;
 }
 
-[data-theme="dark"] .cpu-cylinder {
+[data-theme="dark"] .cpu-cylinder,
+[data-theme="tokyo-night"] .cpu-cylinder,
+[data-theme="monokai"] .cpu-cylinder,
+[data-theme="synthwave"] .cpu-cylinder,
+[data-theme="dracula"] .cpu-cylinder {
     background: rgba(255, 255, 255, 0.03);
 }
 
@@ -1450,7 +1641,11 @@ body {
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
 
-[data-theme="dark"] .form-control {
+[data-theme="dark"] .form-control,
+[data-theme="tokyo-night"] .form-control,
+[data-theme="monokai"] .form-control,
+[data-theme="synthwave"] .form-control,
+[data-theme="dracula"] .form-control {
     background: rgba(15, 23, 42, 0.5);
 }
 
@@ -1539,7 +1734,11 @@ body {
     background: rgba(0, 0, 0, 0.03);
 }
 
-[data-theme="dark"] .btn-db:hover {
+[data-theme="dark"] .btn-db:hover,
+[data-theme="tokyo-night"] .btn-db:hover,
+[data-theme="monokai"] .btn-db:hover,
+[data-theme="synthwave"] .btn-db:hover,
+[data-theme="dracula"] .btn-db:hover {
     background: rgba(255, 255, 255, 0.03);
 }
 
@@ -1595,7 +1794,11 @@ body {
     border-bottom: 2px solid var(--border-color);
 }
 
-[data-theme="dark"] .process-table th {
+[data-theme="dark"] .process-table th,
+[data-theme="tokyo-night"] .process-table th,
+[data-theme="monokai"] .process-table th,
+[data-theme="synthwave"] .process-table th,
+[data-theme="dracula"] .process-table th {
     background: rgba(255, 255, 255, 0.02);
 }
 
@@ -1618,7 +1821,11 @@ body {
     background: rgba(0, 0, 0, 0.02);
 }
 
-[data-theme="dark"] .process-table tbody tr:hover {
+[data-theme="dark"] .process-table tbody tr:hover,
+[data-theme="tokyo-night"] .process-table tbody tr:hover,
+[data-theme="monokai"] .process-table tbody tr:hover,
+[data-theme="synthwave"] .process-table tbody tr:hover,
+[data-theme="dracula"] .process-table tbody tr:hover {
     background: rgba(255, 255, 255, 0.03);
 }
 
