@@ -111,10 +111,14 @@
     --text-secondary: #a9b1d6;
     --text-muted: #565f89;
 
-    --cpu-start: #7aa2f7; --cpu-end: #7dcfff;
-    --ram-start: #bb9af7; --ram-end: #9d7cd8;
-    --disk-start: #ff9e64; --disk-end: #e0af68;
-    --net-start: #9ece6a; --net-end: #73daca;
+    --cpu-start: #7aa2f7;
+    --cpu-end: #7dcfff;
+    --ram-start: #bb9af7;
+    --ram-end: #9d7cd8;
+    --disk-start: #ff9e64;
+    --disk-end: #e0af68;
+    --net-start: #9ece6a;
+    --net-end: #73daca;
 }
 
 /* ─── Monokai ───────────────────────────────────────────────────────────── */
@@ -130,10 +134,14 @@
     --text-secondary: #e6db74;
     --text-muted: #75715e;
 
-    --cpu-start: #f92672; --cpu-end: #fd971f;
-    --ram-start: #ae81ff; --ram-end: #66d9ef;
-    --disk-start: #e6db74; --disk-end: #a6e22e;
-    --net-start: #a6e22e; --net-end: #a6e22e;
+    --cpu-start: #f92672;
+    --cpu-end: #fd971f;
+    --ram-start: #ae81ff;
+    --ram-end: #66d9ef;
+    --disk-start: #e6db74;
+    --disk-end: #a6e22e;
+    --net-start: #a6e22e;
+    --net-end: #a6e22e;
 }
 
 /* ─── SynthWave '84 ─────────────────────────────────────────────────────── */
@@ -149,10 +157,14 @@
     --text-secondary: #f92aad;
     --text-muted: #848bbd;
 
-    --cpu-start: #ff7edb; --cpu-end: #f92aad;
-    --ram-start: #36f9f6; --ram-end: #b893ce;
-    --disk-start: #fede5d; --disk-end: #ff7edb;
-    --net-start: #72f1b8; --net-end: #03edf9;
+    --cpu-start: #ff7edb;
+    --cpu-end: #f92aad;
+    --ram-start: #36f9f6;
+    --ram-end: #b893ce;
+    --disk-start: #fede5d;
+    --disk-end: #ff7edb;
+    --net-start: #72f1b8;
+    --net-end: #03edf9;
 }
 
 /* ─── Dracula ───────────────────────────────────────────────────────────── */
@@ -168,10 +180,14 @@
     --text-secondary: #8be9fd;
     --text-muted: #6272a4;
 
-    --cpu-start: #ff79c6; --cpu-end: #bd93f9;
-    --ram-start: #bd93f9; --ram-end: #ffb86c;
-    --disk-start: #ffb86c; --disk-end: #f1fa8c;
-    --net-start: #50fa7b; --net-end: #8be9fd;
+    --cpu-start: #ff79c6;
+    --cpu-end: #bd93f9;
+    --ram-start: #bd93f9;
+    --ram-end: #ffb86c;
+    --disk-start: #ffb86c;
+    --disk-end: #f1fa8c;
+    --net-start: #50fa7b;
+    --net-end: #8be9fd;
 }
 
 
@@ -1068,7 +1084,8 @@ body {
 .chart-header-controls {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 16px;
+    z-index: 100;
 }
 
 .btn-fullscreen {
