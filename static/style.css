@@ -50,6 +50,8 @@
 /* ─── Dark Mode ──────────────────────────────────────────────────────────── */
 
 [data-theme="dark"],
+[data-theme="securecrt"],
+[data-theme="gruvbox"],
 [data-theme="tokyo-night"],
 [data-theme="monokai"],
 [data-theme="synthwave"],
@@ -73,6 +75,103 @@
     --shadow-glow-disk: 0 4px 20px rgba(249, 115, 22, 0.25);
     --shadow-glow-net: 0 4px 20px rgba(16, 185, 129, 0.25);
 }
+
+
+/* ─── SecureCRT (Retro Terminal) ────────────────────────────────────────── */
+[data-theme="securecrt"] {
+    --bg-primary: #000000;
+    --bg-secondary: #000000;
+    --bg-card: rgba(0, 0, 0, 0.9);
+    --bg-card-hover: rgba(10, 20, 10, 0.95);
+    --border-color: rgba(0, 255, 0, 0.2);
+    --border-glow: rgba(0, 255, 0, 0.35);
+
+    --text-primary: #00ff00;
+    --text-secondary: #00cc00;
+    --text-muted: #008800;
+
+    --cpu-start: #00ff00; --cpu-end: #33ff33;
+    --ram-start: #00ff00; --ram-end: #66ff66;
+    --disk-start: #00ff00; --disk-end: #99ff99;
+    --net-start: #00ff00; --net-end: #ccffcc;
+}
+
+/* ─── Gruvbox Dark ──────────────────────────────────────────────────────── */
+[data-theme="gruvbox"] {
+    --bg-primary: #282828;
+    --bg-secondary: #3c3836;
+    --bg-card: rgba(60, 56, 54, 0.85);
+    --bg-card-hover: rgba(60, 56, 54, 0.95);
+    --border-color: rgba(168, 153, 132, 0.2);
+    --border-glow: rgba(254, 128, 25, 0.35);
+
+    --text-primary: #ebdbb2;
+    --text-secondary: #d5c4a1;
+    --text-muted: #a89984;
+
+    --cpu-start: #fb4934; --cpu-end: #fe8019;
+    --ram-start: #d3869b; --ram-end: #b16286;
+    --disk-start: #fabd2f; --disk-end: #b8bb26;
+    --net-start: #8ec07c; --net-end: #83a598;
+}
+
+/* ─── GitHub Light ──────────────────────────────────────────────────────── */
+[data-theme="github-light"] {
+    --bg-primary: #f6f8fa;
+    --bg-secondary: #ffffff;
+    --bg-card: rgba(255, 255, 255, 0.9);
+    --bg-card-hover: rgba(255, 255, 255, 1);
+    --border-color: rgba(208, 215, 222, 1);
+    --border-glow: rgba(9, 105, 218, 0.25);
+
+    --text-primary: #24292f;
+    --text-secondary: #57606a;
+    --text-muted: #8c959f;
+
+    --cpu-start: #cf222e; --cpu-end: #a40e26;
+    --ram-start: #8250df; --ram-end: #bf3989;
+    --disk-start: #9a6700; --disk-end: #b08800;
+    --net-start: #1a7f37; --net-end: #0969da;
+}
+
+/* ─── Solarized Light ───────────────────────────────────────────────────── */
+[data-theme="solarized-light"] {
+    --bg-primary: #fdf6e3;
+    --bg-secondary: #eee8d5;
+    --bg-card: rgba(238, 232, 213, 0.85);
+    --bg-card-hover: rgba(238, 232, 213, 1);
+    --border-color: rgba(147, 161, 161, 0.2);
+    --border-glow: rgba(38, 139, 210, 0.35);
+
+    --text-primary: #073642;
+    --text-secondary: #586e75;
+    --text-muted: #657b83;
+
+    --cpu-start: #cb4b16; --cpu-end: #dc322f;
+    --ram-start: #6c71c4; --ram-end: #d33682;
+    --disk-start: #b58900; --disk-end: #859900;
+    --net-start: #2aa198; --net-end: #268bd2;
+}
+
+/* ─── One Light ─────────────────────────────────────────────────────────── */
+[data-theme="one-light"] {
+    --bg-primary: #fafafa;
+    --bg-secondary: #ffffff;
+    --bg-card: rgba(255, 255, 255, 0.9);
+    --bg-card-hover: rgba(255, 255, 255, 1);
+    --border-color: rgba(226, 228, 229, 1);
+    --border-glow: rgba(64, 120, 242, 0.25);
+
+    --text-primary: #383a42;
+    --text-secondary: #696c77;
+    --text-muted: #a0a1a7;
+
+    --cpu-start: #e45649; --cpu-end: #d19a66;
+    --ram-start: #a626a4; --ram-end: #c18401;
+    --disk-start: #c18401; --disk-end: #50a14f;
+    --net-start: #50a14f; --net-end: #0184bc;
+}
+
 
 /* ─── OLED Mode ──────────────────────────────────────────────────────────── */
 
@@ -218,6 +317,8 @@
 }
 
 [data-theme="dark"] .header h1,
+[data-theme="securecrt"] .header h1,
+[data-theme="gruvbox"] .header h1,
 [data-theme="tokyo-night"] .header h1,
 [data-theme="monokai"] .header h1,
 [data-theme="synthwave"] .header h1,
@@ -229,6 +330,8 @@
 }
 
 [data-theme="dark"] .gauge-bg,
+[data-theme="securecrt"] .gauge-bg,
+[data-theme="gruvbox"] .gauge-bg,
 [data-theme="tokyo-night"] .gauge-bg,
 [data-theme="monokai"] .gauge-bg,
 [data-theme="synthwave"] .gauge-bg,
@@ -238,6 +341,8 @@
 }
 
 [data-theme="dark"] .load-badge,
+[data-theme="securecrt"] .load-badge,
+[data-theme="gruvbox"] .load-badge,
 [data-theme="tokyo-night"] .load-badge,
 [data-theme="monokai"] .load-badge,
 [data-theme="synthwave"] .load-badge,
@@ -249,6 +354,8 @@
 }
 
 [data-theme="dark"] .load-label,
+[data-theme="securecrt"] .load-label,
+[data-theme="gruvbox"] .load-label,
 [data-theme="tokyo-night"] .load-label,
 [data-theme="monokai"] .load-label,
 [data-theme="synthwave"] .load-label,
@@ -258,6 +365,8 @@
 }
 
 [data-theme="dark"] .uptime-badge,
+[data-theme="securecrt"] .uptime-badge,
+[data-theme="gruvbox"] .uptime-badge,
 [data-theme="tokyo-night"] .uptime-badge,
 [data-theme="monokai"] .uptime-badge,
 [data-theme="synthwave"] .uptime-badge,
@@ -269,6 +378,8 @@
 }
 
 [data-theme="dark"] .range-btn,
+[data-theme="securecrt"] .range-btn,
+[data-theme="gruvbox"] .range-btn,
 [data-theme="tokyo-night"] .range-btn,
 [data-theme="monokai"] .range-btn,
 [data-theme="synthwave"] .range-btn,
@@ -278,6 +389,8 @@
 }
 
 [data-theme="dark"] .range-btn:hover,
+[data-theme="securecrt"] .range-btn:hover,
+[data-theme="gruvbox"] .range-btn:hover,
 [data-theme="tokyo-night"] .range-btn:hover,
 [data-theme="monokai"] .range-btn:hover,
 [data-theme="synthwave"] .range-btn:hover,
@@ -288,6 +401,8 @@
 }
 
 [data-theme="dark"] .iface-select,
+[data-theme="securecrt"] .iface-select,
+[data-theme="gruvbox"] .iface-select,
 [data-theme="tokyo-night"] .iface-select,
 [data-theme="monokai"] .iface-select,
 [data-theme="synthwave"] .iface-select,
@@ -299,6 +414,8 @@
 }
 
 [data-theme="dark"] .net-max-input input,
+[data-theme="securecrt"] .net-max-input input,
+[data-theme="gruvbox"] .net-max-input input,
 [data-theme="tokyo-night"] .net-max-input input,
 [data-theme="monokai"] .net-max-input input,
 [data-theme="synthwave"] .net-max-input input,
@@ -310,6 +427,8 @@
 }
 
 [data-theme="dark"] .bg-orb,
+[data-theme="securecrt"] .bg-orb,
+[data-theme="gruvbox"] .bg-orb,
 [data-theme="tokyo-night"] .bg-orb,
 [data-theme="monokai"] .bg-orb,
 [data-theme="synthwave"] .bg-orb,
@@ -1281,6 +1400,8 @@ body {
 }
 
 [data-theme="dark"] .cpu-cylinder,
+[data-theme="securecrt"] .cpu-cylinder,
+[data-theme="gruvbox"] .cpu-cylinder,
 [data-theme="tokyo-night"] .cpu-cylinder,
 [data-theme="monokai"] .cpu-cylinder,
 [data-theme="synthwave"] .cpu-cylinder,
@@ -1670,6 +1791,8 @@ body {
 }
 
 [data-theme="dark"] .form-control,
+[data-theme="securecrt"] .form-control,
+[data-theme="gruvbox"] .form-control,
 [data-theme="tokyo-night"] .form-control,
 [data-theme="monokai"] .form-control,
 [data-theme="synthwave"] .form-control,
@@ -1763,6 +1886,8 @@ body {
 }
 
 [data-theme="dark"] .btn-db:hover,
+[data-theme="securecrt"] .btn-db:hover,
+[data-theme="gruvbox"] .btn-db:hover,
 [data-theme="tokyo-night"] .btn-db:hover,
 [data-theme="monokai"] .btn-db:hover,
 [data-theme="synthwave"] .btn-db:hover,
@@ -1823,6 +1948,8 @@ body {
 }
 
 [data-theme="dark"] .process-table th,
+[data-theme="securecrt"] .process-table th,
+[data-theme="gruvbox"] .process-table th,
 [data-theme="tokyo-night"] .process-table th,
 [data-theme="monokai"] .process-table th,
 [data-theme="synthwave"] .process-table th,
@@ -1850,6 +1977,8 @@ body {
 }
 
 [data-theme="dark"] .process-table tbody tr:hover,
+[data-theme="securecrt"] .process-table tbody tr:hover,
+[data-theme="gruvbox"] .process-table tbody tr:hover,
 [data-theme="tokyo-night"] .process-table tbody tr:hover,
 [data-theme="monokai"] .process-table tbody tr:hover,
 [data-theme="synthwave"] .process-table tbody tr:hover,
