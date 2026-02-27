@@ -76,7 +76,6 @@
     --shadow-glow-net: 0 4px 20px rgba(16, 185, 129, 0.25);
 }
 
-
 /* ─── SecureCRT (Retro Terminal) ────────────────────────────────────────── */
 [data-theme="securecrt"] {
     --bg-primary: #000000;
@@ -115,25 +114,6 @@
     --net-start: #8ec07c; --net-end: #83a598;
 }
 
-/* ─── GitHub Light ──────────────────────────────────────────────────────── */
-[data-theme="github-light"] {
-    --bg-primary: #f6f8fa;
-    --bg-secondary: #ffffff;
-    --bg-card: rgba(255, 255, 255, 0.9);
-    --bg-card-hover: rgba(255, 255, 255, 1);
-    --border-color: rgba(208, 215, 222, 1);
-    --border-glow: rgba(9, 105, 218, 0.25);
-
-    --text-primary: #24292f;
-    --text-secondary: #57606a;
-    --text-muted: #8c959f;
-
-    --cpu-start: #cf222e; --cpu-end: #a40e26;
-    --ram-start: #8250df; --ram-end: #bf3989;
-    --disk-start: #9a6700; --disk-end: #b08800;
-    --net-start: #1a7f37; --net-end: #0969da;
-}
-
 /* ─── Solarized Light ───────────────────────────────────────────────────── */
 [data-theme="solarized-light"] {
     --bg-primary: #fdf6e3;
@@ -153,25 +133,44 @@
     --net-start: #2aa198; --net-end: #268bd2;
 }
 
-/* ─── One Light ─────────────────────────────────────────────────────────── */
-[data-theme="one-light"] {
-    --bg-primary: #fafafa;
-    --bg-secondary: #ffffff;
-    --bg-card: rgba(255, 255, 255, 0.9);
-    --bg-card-hover: rgba(255, 255, 255, 1);
-    --border-color: rgba(226, 228, 229, 1);
-    --border-glow: rgba(64, 120, 242, 0.25);
 
-    --text-primary: #383a42;
-    --text-secondary: #696c77;
-    --text-muted: #a0a1a7;
+/* ─── Catppuccin Latte ──────────────────────────────────────────────────── */
+[data-theme="catppuccin-latte"] {
+    --bg-primary: #eff1f5;
+    --bg-secondary: #e6e9ef;
+    --bg-card: rgba(230, 233, 239, 0.85);
+    --bg-card-hover: rgba(230, 233, 239, 1);
+    --border-color: rgba(188, 192, 204, 0.5);
+    --border-glow: rgba(30, 102, 245, 0.25);
 
-    --cpu-start: #e45649; --cpu-end: #d19a66;
-    --ram-start: #a626a4; --ram-end: #c18401;
-    --disk-start: #c18401; --disk-end: #50a14f;
-    --net-start: #50a14f; --net-end: #0184bc;
+    --text-primary: #4c4f69;
+    --text-secondary: #6c6f85;
+    --text-muted: #8c8fa1;
+
+    --cpu-start: #d20f39; --cpu-end: #e64553;
+    --ram-start: #8839ef; --ram-end: #ea76cb;
+    --disk-start: #df8e1d; --disk-end: #fe640b;
+    --net-start: #40a02b; --net-end: #179299;
 }
 
+/* ─── Gruvbox Light ─────────────────────────────────────────────────────── */
+[data-theme="gruvbox-light"] {
+    --bg-primary: #fbf1c7;
+    --bg-secondary: #ebdbb2;
+    --bg-card: rgba(235, 219, 178, 0.85);
+    --bg-card-hover: rgba(235, 219, 178, 1);
+    --border-color: rgba(213, 196, 161, 0.5);
+    --border-glow: rgba(175, 58, 3, 0.25);
+
+    --text-primary: #3c3836;
+    --text-secondary: #504945;
+    --text-muted: #665c54;
+
+    --cpu-start: #9d0006; --cpu-end: #af3a03;
+    --ram-start: #b16286; --ram-end: #8f3f71;
+    --disk-start: #b57614; --disk-end: #79740e;
+    --net-start: #79740e; --net-end: #427b58;
+}
 
 /* ─── Material Light ────────────────────────────────────────────────────── */
 [data-theme="material-light"] {
@@ -211,8 +210,6 @@
     --net-start: #286983; --net-end: #56949f;
 }
 
-
-
 /* ─── OLED Mode ──────────────────────────────────────────────────────────── */
 
 [data-theme="oled"] {
@@ -235,7 +232,6 @@
     --shadow-glow-disk: none;
     --shadow-glow-net: none;
 }
-
 
 /* ─── Tokyo Night ───────────────────────────────────────────────────────── */
 [data-theme="tokyo-night"] {
@@ -328,7 +324,6 @@
     --net-start: #50fa7b;
     --net-end: #8be9fd;
 }
-
 
 [data-theme="oled"] .header h1 {
     background: linear-gradient(135deg, #ffffff, #cbd5e1);
