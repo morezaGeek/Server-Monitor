@@ -219,7 +219,7 @@
             type: "line",
             data: {
                 datasets: [{
-                    label: "Memory",
+                    label: "Used %",
                     data: [],
                     borderColor: COLORS.ram.start,
                     backgroundColor: createGradient(ramCtx, COLORS.ram.start, COLORS.ram.end),
