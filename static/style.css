@@ -173,6 +173,46 @@
 }
 
 
+/* ─── Material Light ────────────────────────────────────────────────────── */
+[data-theme="material-light"] {
+    --bg-primary: #fafafa;
+    --bg-secondary: #ffffff;
+    --bg-card: rgba(255, 255, 255, 0.95);
+    --bg-card-hover: rgba(255, 255, 255, 1);
+    --border-color: rgba(0, 0, 0, 0.08);
+    --border-glow: rgba(26, 115, 232, 0.25);
+
+    --text-primary: #202124;
+    --text-secondary: #5f6368;
+    --text-muted: #80868b;
+
+    --cpu-start: #ea4335; --cpu-end: #d93025;
+    --ram-start: #9c27b0; --ram-end: #ab47bc;
+    --disk-start: #fbbc04; --disk-end: #f9ab00;
+    --net-start: #34a853; --net-end: #1e8e3e;
+}
+
+/* ─── Rose Pine Dawn ────────────────────────────────────────────────────── */
+[data-theme="rose-pine-dawn"] {
+    --bg-primary: #faf4ed;
+    --bg-secondary: #fffaf3;
+    --bg-card: rgba(255, 250, 243, 0.85);
+    --bg-card-hover: rgba(255, 250, 243, 1);
+    --border-color: rgba(223, 218, 221, 0.5);
+    --border-glow: rgba(215, 130, 126, 0.35);
+
+    --text-primary: #575279;
+    --text-secondary: #797593;
+    --text-muted: #9893a5;
+
+    --cpu-start: #b4637a; --cpu-end: #d7827e;
+    --ram-start: #907aa9; --ram-end: #d7827e;
+    --disk-start: #ea9d34; --disk-end: #d7827e;
+    --net-start: #286983; --net-end: #56949f;
+}
+
+
+
 /* ─── OLED Mode ──────────────────────────────────────────────────────────── */
 
 [data-theme="oled"] {
