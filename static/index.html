@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=47">
+    <link rel="stylesheet" href="/static/style.css?v=48">
 </head>
 
 <body>
@@ -301,9 +301,24 @@
                 <button class="range-btn" data-range="1w">1 Week</button>
                 <button class="range-btn" data-range="1m">1 Month</button>
             </div>
-            <div class="refresh-info">
-                <span class="refresh-dot"></span>
-                Auto-refresh every 1s
+            <div class="range-right-controls">
+                <div class="smooth-control" title="Smooth noisy data with a moving average">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M2 12c2-4 6-4 8 0s6 4 8 0" />
+                    </svg>
+                    <label for="smoothLevel">Smooth:</label>
+                    <select id="smoothLevel" class="iface-select">
+                        <option value="0">Off</option>
+                        <option value="3">Light</option>
+                        <option value="7" selected>Medium</option>
+                        <option value="15">Heavy</option>
+                        <option value="30">Ultra</option>
+                    </select>
+                </div>
+                <div class="refresh-info">
+                    <span class="refresh-dot"></span>
+                    Auto-refresh every 1s
+                </div>
             </div>
         </section>
 
@@ -719,7 +734,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script
         src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-    <script src="/static/app.js?v=42"></script>
+    <script src="/static/app.js?v=43"></script>
 </body>
 
 </html>
