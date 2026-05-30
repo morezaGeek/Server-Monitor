@@ -237,12 +237,35 @@ setup_ssl() {
 # ─────────────────────────────────────────
 do_install() {
     echo ""
-    echo -e "${BLUE}▸ Starting installation...${NC}"
 
     detect_os
     echo -e "${GREEN}✔ Detected OS: $OS${NC}"
 
-    # Install prerequisites (including certbot)
+    # ── Detect if this is an UPGRADE ──────────────────────────────
+    IS_UPGRADE=false
+    if [ -f "$SERVICE_FILE" ] && [ -d "$INSTALL_DIR/.git" ]; then
+        IS_UPGRADE=true
+        echo ""
+        echo -e "${CYAN}  ╔═══════════════════════════════════════╗${NC}"
+        echo -e "${CYAN}  ║   🔄 Existing installation detected   ║${NC}"
+        echo -e "${CYAN}  ║      Performing silent upgrade...      ║${NC}"
+        echo -e "${CYAN}  ╚═══════════════════════════════════════╝${NC}"
+        echo ""
+
+        # Read current config from service file
+        PANEL_PORT=$(grep -oP '(?<=--port )\d+' "$SERVICE_FILE" 2>/dev/null || echo "8080")
+        PANEL_USER=$(grep -oP '(?<=PANEL_USERNAME=)[^"]*' "$SERVICE_FILE" 2>/dev/null || echo "admin")
+        PANEL_PASS=$(grep -oP '(?<=PANEL_PASSWORD=)[^"]*' "$SERVICE_FILE" 2>/dev/null || echo "admin")
+        get_ssl_status
+
+        echo -e "  ${BLUE}▸ Current config:${NC}"
+        echo -e "    Port: ${BOLD}$PANEL_PORT${NC}  User: ${BOLD}$PANEL_USER${NC}  SSL: ${BOLD}$( [ "$SSL_ENABLED" = true ] && echo "✔ $SSL_DOMAIN" || echo "✘ Off" )${NC}"
+        echo ""
+    else
+        echo -e "${BLUE}▸ Starting fresh installation...${NC}"
+    fi
+
+    # Install prerequisites
     echo -e "${BLUE}▸ Installing system dependencies...${NC}"
     if [[ "$OS" == "ubuntu" || "$OS" == "debian" ]]; then
         apt-get update -qq
@@ -257,7 +280,7 @@ do_install() {
 
     # Clone/update
     if [ -d "$INSTALL_DIR/.git" ]; then
-        echo -e "${BLUE}▸ Updating existing installation...${NC}"
+        echo -e "${BLUE}▸ Pulling latest version from GitHub...${NC}"
         cd "$INSTALL_DIR"
         git fetch --all -q
         git reset --hard origin/main -q
@@ -267,7 +290,7 @@ do_install() {
         git clone "$REPO_URL" "$INSTALL_DIR" -q
         cd "$INSTALL_DIR"
     fi
-    echo -e "${GREEN}✔ Files downloaded${NC}"
+    echo -e "${GREEN}✔ Files updated${NC}"
 
     # Python venv
     echo -e "${BLUE}▸ Setting up Python environment...${NC}"
@@ -277,7 +300,33 @@ do_install() {
     pip install -r requirements.txt -q > /dev/null
     echo -e "${GREEN}✔ Python environment ready${NC}"
 
-    # Configuration
+    # ── UPGRADE: skip all prompts, just restart ───────────────────
+    if [ "$IS_UPGRADE" = true ]; then
+        echo -e "${BLUE}▸ Restarting service (keeping existing config)...${NC}"
+        systemctl daemon-reload
+        systemctl restart server-monitor
+
+        IP_ADDR=$(hostname -I | awk '{print $1}')
+        local proto="http"
+        local display_host=$IP_ADDR
+        if [ "$SSL_ENABLED" = true ]; then
+            proto="https"
+            [ -n "$SSL_DOMAIN" ] && display_host=$SSL_DOMAIN
+        fi
+
+        echo ""
+        divider
+        echo -e "${GREEN}  ✅ Upgrade Complete!${NC}"
+        divider
+        echo ""
+        echo -e "  🌐 Dashboard:  ${BOLD}$proto://$display_host:$PANEL_PORT${NC}"
+        echo -e "  👤 Username:   ${BOLD}$PANEL_USER${NC}"
+        echo -e "  📋 Logs:       ${BOLD}journalctl -u server-monitor -f${NC}"
+        echo ""
+        return
+    fi
+
+    # ── FRESH INSTALL: ask for configuration ─────────────────────
     echo ""
     divider
     echo -e "${YELLOW}  Configuration${NC}"
