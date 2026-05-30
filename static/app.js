@@ -26,6 +26,34 @@
     let chartTimer = null;
     let selectedNic = null;  // will be set from /api/interfaces
 
+    // ─── Smoothing (Moving Average) ─────────────────────────────────────────
+    function getSmoothWindow() {
+        const el = document.getElementById("smoothLevel");
+        return el ? (parseInt(el.value, 10) || 0) : 0;
+    }
+
+    /**
+     * Apply a simple centered moving average to an array of {x, y} points.
+     * Returns a new array with smoothed y values; x values are preserved.
+     * window=0 means no smoothing (returns original data).
+     */
+    function movingAverage(data, window) {
+        if (!window || window < 2 || data.length < window) return data;
+        const half = Math.floor(window / 2);
+        return data.map((point, i) => {
+            if (point.y === null || point.y === undefined) return point;
+            let sum = 0;
+            let count = 0;
+            for (let j = Math.max(0, i - half); j <= Math.min(data.length - 1, i + half); j++) {
+                if (data[j].y !== null && data[j].y !== undefined) {
+                    sum += parseFloat(data[j].y);
+                    count++;
+                }
+            }
+            return { x: point.x, y: count > 0 ? sum / count : point.y };
+        });
+    }
+
     // Returns the user-defined max Mbps from the input (default 400)
     function getNetMax() {
         const el = document.getElementById("netMaxMbps");
@@ -699,7 +727,7 @@
         cpuChart.options.scales.x.min = minMs;
         cpuChart.options.scales.x.max = maxMs;
         const cpuAvgData = data.map((d, i) => ({ x: timestamps[i], y: d.cpu }));
-        cpuChart.data.datasets[0].data = cpuAvgData;
+        cpuChart.data.datasets[0].data = movingAverage(cpuAvgData, getSmoothWindow());
 
         // Process individual CPU cores if extra exists
         const sampleWithCores = data.find(d => d.extra && d.extra.cpu_cores && d.extra.cpu_cores.length > 0);
@@ -733,7 +761,7 @@
                         coreDataPoints.push({ x: timestamps[i], y: null });
                     }
                 }
-                cpuChart.data.datasets[j + 1].data = coreDataPoints;
+                cpuChart.data.datasets[j + 1].data = movingAverage(coreDataPoints, getSmoothWindow());
             }
         }
         cpuChart.update("none");
@@ -744,7 +772,7 @@
         ramChart.options.scales.x.min = minMs;
         ramChart.options.scales.x.max = maxMs;
         const ramData = data.map((d, i) => ({ x: timestamps[i], y: d.ram }));
-        ramChart.data.datasets[0].data = ramData;
+        ramChart.data.datasets[0].data = movingAverage(ramData, getSmoothWindow());
 
         // Process advanced RAM metrics if extra exists
         if (data.some(d => d.extra && d.extra.ram_free_gb !== undefined)) {
@@ -792,7 +820,7 @@
                         dataPoints.push({ x: timestamps[i], y: null });
                     }
                 }
-                ramChart.data.datasets[j + 1].data = dataPoints;
+                ramChart.data.datasets[j + 1].data = movingAverage(dataPoints, getSmoothWindow());
             }
         }
 
@@ -837,9 +865,10 @@
         }
         diskChart.options.scales.y1.max = maxDiskSpd * 1.2;
 
-        diskChart.data.datasets[0].data = diskData;
-        diskChart.data.datasets[1].data = diskReadData;
-        diskChart.data.datasets[2].data = diskWriteData;
+        const sw = getSmoothWindow();
+        diskChart.data.datasets[0].data = movingAverage(diskData, sw);
+        diskChart.data.datasets[1].data = movingAverage(diskReadData, sw);
+        diskChart.data.datasets[2].data = movingAverage(diskWriteData, sw);
         diskChart.update("none");
 
         // Calculate dynamic max for disk IOPS with 20% padding
@@ -852,8 +881,8 @@
 
         diskIopsChart.options.scales.x.min = minMs;
         diskIopsChart.options.scales.x.max = maxMs;
-        diskIopsChart.data.datasets[0].data = diskReadIopsData;
-        diskIopsChart.data.datasets[1].data = diskWriteIopsData;
+        diskIopsChart.data.datasets[0].data = movingAverage(diskReadIopsData, getSmoothWindow());
+        diskIopsChart.data.datasets[1].data = movingAverage(diskWriteIopsData, getSmoothWindow());
         diskIopsChart.update("none");
 
         const diskAvg = (data.reduce((s, d) => s + d.disk, 0) / data.length).toFixed(1);
@@ -869,8 +898,9 @@
         netChart.options.scales.x.max = maxMs;
         const netSentData = data.map((d, i) => ({ x: timestamps[i], y: toMbps(d.net_sent) }));
         const netRecvData = data.map((d, i) => ({ x: timestamps[i], y: toMbps(d.net_recv) }));
-        netChart.data.datasets[0].data = netSentData;
-        netChart.data.datasets[1].data = netRecvData;
+        const nsw = getSmoothWindow();
+        netChart.data.datasets[0].data = movingAverage(netSentData, nsw);
+        netChart.data.datasets[1].data = movingAverage(netRecvData, nsw);
         applyNetMax();
         const avgSent = (data.reduce((s, d) => s + d.net_sent, 0) / data.length * 8) / 1_000_000;
         const avgRecv = (data.reduce((s, d) => s + d.net_recv, 0) / data.length * 8) / 1_000_000;
@@ -923,8 +953,9 @@
         connChart.options.scales.x.min = minMs;
         connChart.options.scales.x.max = maxMs;
 
-        connChart.data.datasets[0].data = tcpData;
-        connChart.data.datasets[1].data = udpData;
+        const csw = getSmoothWindow();
+        connChart.data.datasets[0].data = movingAverage(tcpData, csw);
+        connChart.data.datasets[1].data = movingAverage(udpData, csw);
         connChart.update("none");
 
         // Badge
@@ -977,6 +1008,22 @@
                 fetchMetrics();
             });
         });
+
+        // Smoothing level change — re-render charts with last data
+        const smoothSelect = document.getElementById("smoothLevel");
+        if (smoothSelect) {
+            // Restore saved value
+            const saved = localStorage.getItem("smoothLevel");
+            if (saved !== null) smoothSelect.value = saved;
+
+            smoothSelect.addEventListener("change", () => {
+                localStorage.setItem("smoothLevel", smoothSelect.value);
+                // Re-render with existing data
+                if (window.lastMetricsJson && window.lastMetricsJson.data) {
+                    updateCharts(window.lastMetricsJson.data);
+                }
+            });
+        }
     }
 
     // ─── Fullscreen Buttons ──────────────────────────────────────────────────
