@@ -755,9 +755,20 @@ RANGE_MAP = {
 
 
 @app.get("/api/metrics")
-async def get_metrics(range: str = Query("1h", pattern="^(1h|2h|6h|12h|1d|2d|1w|1m)$"), username: str = Depends(get_current_username)):
-    """Return time-series metrics for the given range."""
-    total_seconds, bucket = RANGE_MAP.get(range, (3600, None))
+async def get_metrics(range: str = Query("1h"), seconds: int = Query(None, ge=60, le=7776000), username: str = Depends(get_current_username)):
+    """Return time-series metrics for the given range or custom seconds."""
+    if seconds is not None:
+        total_seconds = seconds
+        # Auto-calculate bucket based on duration
+        if seconds <= 7200:        bucket = None       # raw
+        elif seconds <= 21600:     bucket = 30          # 30s avg
+        elif seconds <= 43200:     bucket = 60          # 1m avg
+        elif seconds <= 86400:     bucket = 120         # 2m avg
+        elif seconds <= 172800:    bucket = 300         # 5m avg
+        elif seconds <= 604800:    bucket = 900         # 15m avg
+        else:                      bucket = 3600        # 1h avg
+    else:
+        total_seconds, bucket = RANGE_MAP.get(range, (3600, None))
     cutoff = time.time() - total_seconds
 
     with get_db() as conn:
