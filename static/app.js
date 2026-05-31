@@ -720,7 +720,8 @@
 
         // Calculate explicit min/max bounds based on the selected range
         const maxMs = Date.now();
-        const minMs = maxMs - (RANGE_MS[currentRange] || 3600000);
+        const rangeMs = (customSeconds !== null) ? (customSeconds * 1000) : (RANGE_MS[currentRange] || 3600000);
+        const minMs = maxMs - rangeMs;
 
         // CPU Max configuration
         const savedCpuMax = localStorage.getItem("cpuMaxPercent");
@@ -956,7 +957,8 @@
 
         // Apply explicit min/max bounds
         const maxMs = Date.now();
-        const minMs = maxMs - (RANGE_MS[currentRange] || 3600000);
+        const rangeMs = (customSeconds !== null) ? (customSeconds * 1000) : (RANGE_MS[currentRange] || 3600000);
+        const minMs = maxMs - rangeMs;
         connChart.options.scales.x.min = minMs;
         connChart.options.scales.x.max = maxMs;
 
