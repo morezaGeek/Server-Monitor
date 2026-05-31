@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=49">
+    <link rel="stylesheet" href="/static/style.css?v=50">
 </head>
 
 <body>
@@ -293,13 +293,45 @@
         <!-- Time Range Selector -->
         <section class="range-section">
             <div class="range-buttons" id="rangeButtons">
-                <button class="range-btn active" data-range="1h">1 Hour</button>
-                <button class="range-btn" data-range="2h">2 Hours</button>
-                <button class="range-btn" data-range="12h">12 Hours</button>
-                <button class="range-btn" data-range="1d">1 Day</button>
-                <button class="range-btn" data-range="2d">2 Days</button>
-                <button class="range-btn" data-range="1w">1 Week</button>
-                <button class="range-btn" data-range="1m">1 Month</button>
+                <button class="range-btn active" data-range="1h">1h</button>
+                <button class="range-btn" data-range="2h">2h</button>
+                <button class="range-btn" data-range="6h">6h</button>
+                <button class="range-btn" data-range="12h">12h</button>
+                <button class="range-btn" data-range="1d">1d</button>
+                <button class="range-btn" data-range="2d">2d</button>
+                <button class="range-btn" data-range="1w">1w</button>
+                <button class="range-btn" data-range="1m">1m</button>
+                <div class="custom-range-wrapper">
+                    <button class="range-btn range-btn-custom" id="btnCustomRange" title="Custom time range">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                        Custom
+                    </button>
+                    <div class="custom-range-popover" id="customRangePopover">
+                        <div class="custom-range-title">Custom Time Range</div>
+                        <div class="custom-range-row">
+                            <input type="number" id="customRangeValue" min="1" max="90" value="3" class="custom-range-input" />
+                            <select id="customRangeUnit" class="custom-range-unit">
+                                <option value="3600">Hours</option>
+                                <option value="86400">Days</option>
+                            </select>
+                            <button id="btnApplyCustomRange" class="custom-range-apply">Apply</button>
+                        </div>
+                        <div class="custom-range-presets">
+                            <button class="custom-preset" data-hours="3">3h</button>
+                            <button class="custom-preset" data-hours="4">4h</button>
+                            <button class="custom-preset" data-hours="8">8h</button>
+                            <button class="custom-preset" data-hours="18">18h</button>
+                            <button class="custom-preset" data-hours="72">3d</button>
+                            <button class="custom-preset" data-hours="120">5d</button>
+                            <button class="custom-preset" data-hours="240">10d</button>
+                            <button class="custom-preset" data-hours="720">30d</button>
+                            <button class="custom-preset" data-hours="1440">60d</button>
+                            <button class="custom-preset" data-hours="2160">90d</button>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="range-right-controls">
                 <div class="smooth-control" title="Smooth noisy data with a moving average">
@@ -558,7 +590,7 @@
 
         <!-- Footer -->
         <footer class="footer">
-            <p>Server Monitor Dashboard v1.1.0 &copy; 2026 By morezaGeek</p>
+            <p>Server Monitor Dashboard v1.2.0 &copy; 2026 By morezaGeek</p>
         </footer>
     </div>
 
@@ -734,7 +766,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script
         src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-    <script src="/static/app.js?v=43"></script>
+    <script src="/static/app.js?v=44"></script>
 </body>
 
 </html>
