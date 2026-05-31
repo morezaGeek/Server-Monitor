@@ -1237,7 +1237,7 @@ body {
     left: 50%;
     transform: translateX(-50%);
     min-width: 280px;
-    background: var(--bg-card);
+    background: var(--bg-secondary);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
     border: 1px solid var(--border-color);
@@ -1271,7 +1271,7 @@ body {
     transform: translateX(-50%) rotate(45deg);
     width: 12px;
     height: 12px;
-    background: var(--bg-card);
+    background: var(--bg-secondary);
     border-left: 1px solid var(--border-color);
     border-top: 1px solid var(--border-color);
 }
