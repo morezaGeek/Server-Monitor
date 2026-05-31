@@ -22,6 +22,7 @@
     };
 
     let currentRange = "1h";
+    let customSeconds = null; // null = use preset range, number = custom seconds
     let statsTimer = null;
     let chartTimer = null;
     let selectedNic = null;  // will be set from /api/interfaces
@@ -578,7 +579,13 @@
 
     async function fetchMetrics() {
         try {
-            const res = await fetch(`/api/metrics?range=${currentRange}`);
+            let url;
+            if (customSeconds !== null) {
+                url = `/api/metrics?seconds=${customSeconds}`;
+            } else {
+                url = `/api/metrics?range=${currentRange}`;
+            }
+            const res = await fetch(url);
             const json = await res.json();
             window.lastMetricsJson = json; // store globally for the updateCharts function
             updateCharts(json.data);
@@ -999,14 +1006,92 @@
     // ─── Range Buttons ───────────────────────────────────────────────────────
 
     function setupRangeButtons() {
-        const buttons = document.querySelectorAll(".range-btn");
-        buttons.forEach(btn => {
+        const allRangeBtns = document.querySelectorAll(".range-btn[data-range]");
+        const customBtn = document.getElementById("btnCustomRange");
+        const popover = document.getElementById("customRangePopover");
+        const customInput = document.getElementById("customRangeValue");
+        const customUnit = document.getElementById("customRangeUnit");
+        const applyBtn = document.getElementById("btnApplyCustomRange");
+
+        // Helper: format seconds to human-readable label for custom button
+        function formatCustomLabel(secs) {
+            if (secs >= 86400) {
+                const d = Math.round(secs / 86400);
+                return d + "d";
+            }
+            const h = Math.round(secs / 3600);
+            return h + "h";
+        }
+
+        // Helper: clear all active states and set custom
+        function activateCustom(seconds) {
+            customSeconds = seconds;
+            currentRange = null;
+            allRangeBtns.forEach(b => b.classList.remove("active"));
+            customBtn.classList.add("active");
+            customBtn.querySelector("svg").nextSibling.textContent = " " + formatCustomLabel(seconds);
+            popover.classList.remove("show");
+            fetchMetrics();
+        }
+
+        // Preset range buttons
+        allRangeBtns.forEach(btn => {
             btn.addEventListener("click", () => {
-                buttons.forEach(b => b.classList.remove("active"));
+                customSeconds = null;
+                allRangeBtns.forEach(b => b.classList.remove("active"));
+                customBtn.classList.remove("active");
+                // Reset custom button text
+                const svgEl = customBtn.querySelector("svg");
+                if (svgEl && svgEl.nextSibling) svgEl.nextSibling.textContent = " Custom";
                 btn.classList.add("active");
                 currentRange = btn.dataset.range;
+                popover.classList.remove("show");
                 fetchMetrics();
             });
+        });
+
+        // Toggle custom popover
+        if (customBtn) {
+            customBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                popover.classList.toggle("show");
+            });
+        }
+
+        // Apply button
+        if (applyBtn) {
+            applyBtn.addEventListener("click", () => {
+                const val = parseInt(customInput.value, 10);
+                const unit = parseInt(customUnit.value, 10);
+                if (val > 0) {
+                    const secs = Math.min(val * unit, 7776000); // cap 90 days
+                    activateCustom(secs);
+                }
+            });
+        }
+
+        // Enter key on input
+        if (customInput) {
+            customInput.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") {
+                    applyBtn.click();
+                }
+            });
+        }
+
+        // Quick presets
+        document.querySelectorAll(".custom-preset").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const hours = parseInt(btn.dataset.hours, 10);
+                activateCustom(hours * 3600);
+            });
+        });
+
+        // Close popover on click outside
+        document.addEventListener("click", (e) => {
+            if (popover && !popover.contains(e.target) && e.target !== customBtn && !customBtn.contains(e.target)) {
+                popover.classList.remove("show");
+            }
         });
 
         // Smoothing level change — re-render charts with last data
