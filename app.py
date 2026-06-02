@@ -446,22 +446,108 @@ _benchmark_processes = []
 _benchmark_lock = threading.Lock()
 _benchmark_running = False
 
-def _benchmark_worker(duration_seconds: int, return_dict: dict, idx: int):
-    """A highly intensive CPU-bound task to hit 100% usage."""
-    import os
+def _cpu_real_world_worker(duration_seconds: int, return_dict: dict, idx: int):
+    """A CPU-bound task that emulates real-world server workloads: JSON parsing, SHA-256 cryptographic hashing, and sorting."""
+    import os, time, json, hashlib, random
     try:
-        os.nice(15)  # Lower priority so the web server remains responsive to Stop requests
+        os.nice(15)  # Lower priority so the system remains responsive
     except AttributeError:
         pass
         
     start = time.time()
     iterations = 0
+    
+    # Mock payload simulating real web API database structures
+    payload = {
+        "id": 10000 + (idx if isinstance(idx, int) else 99),
+        "name": "Server Monitor Benchmark Client",
+        "email": "benchmark@test.panel.rahanetmci.com",
+        "roles": ["admin", "editor", "developer", "user"],
+        "isActive": True,
+        "system_stats": [random.random() for _ in range(120)]
+    }
+    
     while time.time() - start < duration_seconds:
-        x = 3.14159
-        for _ in range(50000):
-            x = (x * 2.71828) / 1.61803
+        # 1. JSON Serialization & Deserialization
+        serialized = json.dumps(payload)
+        deserialized = json.loads(serialized)
+        
+        # 2. Cryptographic Hashing (simulating HTTPS/cookie security validation)
+        data = (serialized * 12).encode("utf-8")  # ~12KB string
+        h = hashlib.sha256(data).hexdigest()
+        
+        # 3. Memory Array Sorting (simulating database query ordering)
+        arr = [random.randint(0, 100000) for _ in range(250)]
+        arr.sort()
+        
         iterations += 1
+        
     return_dict[idx] = iterations
+
+def _ram_speed_worker(duration_seconds: int, return_dict: dict):
+    """A RAM-bound task to measure memory read-write allocation and copy throughput."""
+    import os, time
+    try:
+        os.nice(15)
+    except AttributeError:
+        pass
+        
+    block_size = 10 * 1024 * 1024  # 10 MB
+    data = bytearray(block_size)
+    
+    start = time.time()
+    copied = 0
+    while time.time() - start < duration_seconds:
+        # Slice memory copy (fast C-level copy)
+        data_copy = data[:]
+        data_copy[0] = 1  # Force evaluation
+        copied += block_size
+        
+    elapsed = time.time() - start
+    gb_per_sec = (copied / (1024 ** 3)) / elapsed
+    return_dict["ram_speed"] = gb_per_sec
+
+def _disk_speed_worker(return_dict: dict):
+    """A Disk-bound task that writes/reads a 50MB file with direct sync to measure IOPS and throughput."""
+    import os, time
+    try:
+        os.nice(15)
+    except AttributeError:
+        pass
+        
+    file_path = "benchmark_temp.bin"
+    block_size = 1024 * 1024  # 1 MB block
+    block_data = os.urandom(block_size)
+    blocks_count = 50  # 50 MB total file size
+    
+    # 1. Write Speed Test
+    t0 = time.time()
+    try:
+        with open(file_path, "wb", buffering=0) as f:
+            for _ in range(blocks_count):
+                f.write(block_data)
+                os.fsync(f.fileno())  # Bypass hypervisor write cache
+        t1 = time.time()
+        write_speed = blocks_count / (t1 - t0)  # MB/s
+        
+        # 2. Read Speed Test
+        t0 = time.time()
+        with open(file_path, "rb", buffering=0) as f:
+            while f.read(block_size):
+                pass
+        t1 = time.time()
+        read_speed = blocks_count / (t1 - t0)  # MB/s
+        
+        return_dict["disk_write"] = write_speed
+        return_dict["disk_read"] = read_speed
+    except Exception as e:
+        return_dict["disk_error"] = str(e)
+    finally:
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except:
+                pass
 
 @app.get("/api/benchmark/cpu")
 async def benchmark_cpu(username: str = Depends(get_current_username)):
@@ -477,41 +563,116 @@ async def benchmark_cpu(username: str = Depends(get_current_username)):
         global _benchmark_processes
         ctx = multiprocessing.get_context("spawn")
         manager = ctx.Manager()
-        return_dict = manager.dict()
+        results = manager.dict()
         
-        processes = []
-        for i in range(cores):
-            p = ctx.Process(target=_benchmark_worker, args=(5, return_dict, i))
-            processes.append(p)
+        try:
+            # ─── Stage 1: CPU Single-Core (2 seconds) ───
+            p_single = ctx.Process(target=_cpu_real_world_worker, args=(2, results, "cpu_single"))
+            with _benchmark_lock:
+                _benchmark_processes = [p_single]
+            p_single.start()
+            p_single.join()
             
-        with _benchmark_lock:
-            _benchmark_processes = processes
+            if p_single.exitcode != 0 and "cpu_single" not in results:
+                return {"status": "stopped"}
+                
+            # ─── Stage 2: CPU Multi-Core (2 seconds) ───
+            multi_dict = manager.dict()
+            processes = []
+            for i in range(cores):
+                p = ctx.Process(target=_cpu_real_world_worker, args=(2, multi_dict, i))
+                processes.append(p)
+                
+            with _benchmark_lock:
+                _benchmark_processes = processes
+                
+            for p in processes:
+                p.start()
+            for p in processes:
+                p.join()
+                
+            if any(p.exitcode != 0 for p in processes) and len(multi_dict) < cores:
+                return {"status": "stopped"}
+                
+            # ─── Stage 3: RAM Bandwidth (1 second) ───
+            p_ram = ctx.Process(target=_ram_speed_worker, args=(1, results))
+            with _benchmark_lock:
+                _benchmark_processes = [p_ram]
+            p_ram.start()
+            p_ram.join()
             
-        for p in processes:
-            p.start()
+            if p_ram.exitcode != 0 and "ram_speed" not in results:
+                return {"status": "stopped"}
+                
+            # ─── Stage 4: Disk I/O Speed (approx. 1.5 seconds) ───
+            p_disk = ctx.Process(target=_disk_speed_worker, args=(results,))
+            with _benchmark_lock:
+                _benchmark_processes = [p_disk]
+            p_disk.start()
+            p_disk.join()
             
-        for p in processes:
-            p.join()
+            if p_disk.exitcode != 0 and "disk_write" not in results:
+                return {"status": "stopped"}
+                
+            # ─── Compile Results & Dimension Scores ───
+            single_iters = results.get("cpu_single", 0)
+            multi_iters = sum(multi_dict.values()) if multi_dict else 0
+            ram_speed = results.get("ram_speed", 0.0)
+            disk_write = results.get("disk_write", 0.0)
+            disk_read = results.get("disk_read", 0.0)
             
-        score = sum(return_dict.values())
-        return score
-
+            # Normalize sub-scores for standard VPS ranges
+            # Average single-core core does ~1200 real-world tasks/sec
+            cpu_single_score = int(single_iters * 0.9)
+            # Multi-core scaling
+            cpu_multi_score = int(multi_iters * 0.9)
+            # Memory bandwidth: 15 GB/s = 1800 pts
+            ram_score = int(ram_speed * 120)
+            # Disk average speed: 500 MB/s = 750 pts
+            disk_avg_speed = (disk_write + disk_read) / 2
+            disk_score = int(disk_avg_speed * 1.5)
+            
+            # Overall Score (Weighted)
+            overall_score = int(
+                (cpu_single_score * 0.3) +
+                (cpu_multi_score * 0.3) +
+                (ram_score * 0.2) +
+                (disk_score * 0.2)
+            )
+            
+            return {
+                "status": "success",
+                "score": max(50, overall_score),
+                "cpu_single_score": cpu_single_score,
+                "cpu_single_val": single_iters,
+                "cpu_multi_score": cpu_multi_score,
+                "cpu_multi_val": multi_iters,
+                "ram_score": ram_score,
+                "ram_val_gbps": round(ram_speed, 2),
+                "disk_score": disk_score,
+                "disk_write_mbps": round(disk_write, 1),
+                "disk_read_mbps": round(disk_read, 1),
+                "cores": cores
+            }
+        except Exception as e:
+            return {"error": f"Benchmark failed: {str(e)}", "score": 0}
+        finally:
+            # Cleanup temp file
+            if os.path.exists("benchmark_temp.bin"):
+                try:
+                    os.remove("benchmark_temp.bin")
+                except:
+                    pass
+                    
     loop = asyncio.get_running_loop()
     try:
-        score = await loop.run_in_executor(None, run_benchmark)
+        res_data = await loop.run_in_executor(None, run_benchmark)
     finally:
         with _benchmark_lock:
             _benchmark_processes = []
             _benchmark_running = False
             
-    # Normalize score based on new loop iteration size
-    normalized_score = int(score * 14.5) if score > 0 else 0
-    
-    return {
-        "score": normalized_score,
-        "cores": cores,
-        "duration_sec": 5
-    }
+    return res_data
 
 @app.get("/api/benchmark/cpu/stop")
 async def stop_benchmark_cpu(username: str = Depends(get_current_username)):
