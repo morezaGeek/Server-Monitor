@@ -1994,15 +1994,16 @@
         checkBrowserStatus();
     }
 
-    // ─── Detached Self Update ────────────────────────────────────────────────
+    // ─── Detached Self Update & Reinstall ────────────────────────────────────
     function setupSelfUpdate() {
-        const btn = document.getElementById("btnUpdatePanel");
+        const btnUpdate = document.getElementById("btnUpdatePanel");
+        const btnReinstall = document.getElementById("btnReinstallPanel");
         const overlay = document.getElementById("updateOverlay");
         const statusText = document.getElementById("updateStatusText");
         const progressBar = document.getElementById("updateProgressBar");
         const progressPercent = document.getElementById("updateProgressPercent");
 
-        if (!btn || !overlay || !statusText || !progressBar || !progressPercent) return;
+        if (!overlay || !statusText || !progressBar || !progressPercent) return;
 
         let updateInterval = null;
         let pollInterval = null;
@@ -2055,9 +2056,10 @@
             }, 2000);
         }
 
-        btn.addEventListener("click", async () => {
+        async function triggerAction(skipGit) {
             if (isUpdating) return;
-            const confirmed = confirm("آیا مایل به به‌روزرسانی و نصب مجدد مانیتور سرور هستید؟\nاین عملیات حدود ۲۰ تا ۳۰ ثانیه زمان می‌برد و پنل به طور خودکار ریستارت خواهد شد.");
+            const actionText = skipGit ? "نصب مجدد (Reinstall)" : "به‌روزرسانی (Update)";
+            const confirmed = confirm(`آیا مایل به ${actionText} مانیتور سرور هستید؟\nاین عملیات حدود ۲۰ تا ۳۰ ثانیه زمان می‌برد و پنل به طور خودکار ریستارت خواهد شد.`);
             if (!confirmed) return;
 
             isUpdating = true;
@@ -2065,6 +2067,7 @@
             document.body.style.overflow = "hidden";
             progressBar.style.width = "0%";
             progressPercent.textContent = "0%";
+            currentProgress = 0;
             statusText.textContent = "Contacting backend and launching detached updater...";
 
             // Smooth fake progress bar for visual feedback (0 to 95% over 22 seconds)
@@ -2076,7 +2079,7 @@
                     progressPercent.textContent = currentProgress + "%";
                     
                     if (currentProgress < 30) {
-                        statusText.textContent = `Fetching latest files from GitHub... (${currentProgress}%)`;
+                        statusText.textContent = skipGit ? `Analyzing local files... (${currentProgress}%)` : `Fetching latest files from GitHub... (${currentProgress}%)`;
                     } else if (currentProgress < 60) {
                         statusText.textContent = `Installing Python dependencies... (${currentProgress}%)`;
                     } else {
@@ -2086,21 +2089,25 @@
             }, 230);
 
             try {
-                const res = await fetch("/api/update", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    }
+                await fetch(`/api/update?skip_git=${skipGit}`, {
+                    method: "POST"
                 });
                 
-                // If successful or if it fails due to network termination (as service is restarted), start polling
+                // If successful or if it fails due to network termination, start polling
                 startPolling();
             } catch (err) {
-                // Typically hits here because the fetch gets aborted or network resets due to systemd restart
+                // Connection reset due to systemd restart
                 console.log("Connection reset due to server restart. Starting offline polling...");
                 startPolling();
             }
-        });
+        }
+
+        if (btnUpdate) {
+            btnUpdate.addEventListener("click", () => triggerAction(false));
+        }
+        if (btnReinstall) {
+            btnReinstall.addEventListener("click", () => triggerAction(true));
+        }
     }
 
     function init() {
