@@ -2129,7 +2129,7 @@
             .then(release => {
                 if (release && release.tag_name) {
                     const latest = release.tag_name.replace(/^v/, "");
-                    const current = "1.3.3";
+                    const current = "1.0.0";
                     
                     const parseVersion = (v) => v.split(".").map(Number);
                     const currParts = parseVersion(current);

@@ -6,14 +6,15 @@ A professional, real-time server monitoring dashboard with a high-performance ba
 
 ## ✨ Features
 
-- **Live System Metrics**: Real-time tracking of CPU, RAM, Disk, and Network I/O with smooth animations.
-- **Per-Core Visualization**: Detailed per-core CPU usage monitoring.
+- **Live System Metrics**: Real-time tracking of CPU, RAM, Disk, and Network I/O with smooth animations and theme-adaptive coloring.
+- **Per-Core Visualization**: Detailed per-core CPU usage cylinders.
 - **Web SSH Terminal**: Fully functional terminal in your browser powered by xterm.js and asyncssh.
-- **CPU Benchmark**: High-intensity multi-core performance testing (with stop functionality).
-- **Persistent History**: Stores historical metrics in an optimized SQLite database.
-- **Advanced Networking**: Multi-interface support and detailed packet-per-second (PPS) tracking.
+- **Multi-Dimensional Benchmark**: High-intensity, sequential real-world benchmark simulating JSON serialization/deserialization, SHA-256 cryptographic hashing, memory slice copying (RAM GB/s), and direct-sync disk write/read throughput (Disk MB/s) with custom ratings and an overall performance score. Handles 1-core systems gracefully by adapting multi-core tests to a single-core sustained stress test.
+- **Persistent History**: Stores historical metrics in an optimized SQLite database with theme-tailored solid popover time ranges.
+- **Detached Dual Update & Reinstall**: Elegant Orange (Update via GitHub) and Blue (Reinstall locally) pill buttons running inside detached systemd transient scopes (`systemd-run`) surviving panel service stops and auto-reconnecting.
+- **GitHub Release Tracking**: Automatically queries public GitHub Releases in the browser and displays a gorgeous pulsing amber notification badge (`New: v1.0.1`) next to the Update button when a newer version is published.
 - **🌐 Virtual Browser**: Secure, Docker-based Chromium browser accessible directly from the dashboard.
-- **Beautiful UI**: Modern glassmorphism aesthetic with automatic Dark/Light mode support.
+- **Beautiful UI**: Modern glassmorphic aesthetic with support for multiple premium themes (Dark, Light, Gruvbox, Nord, Cyberpunk, etc.).
 
 ## 🚀 Quick Installation
 
@@ -27,7 +28,41 @@ curl -sL https://raw.githubusercontent.com/morezaGeek/Server-Monitor/main/instal
 
 If you prefer to run Server Monitor in a fully isolated container while maintaining accurate host-level metric tracking (network interfaces, disk throughput, real-time memory usage, and processes), you can deploy it using Docker and Docker Compose.
 
-### Quick Run with Docker
+To monitor the *host* resources from inside the container, we mount the host's `/proc` and `/sys` filesystems as read-only volumes and share the host's network namespace (`--network host` or `network_mode: host`).
+
+### Option A: Local Build & Run (No Docker Hub pull required)
+If you have cloned the repository, you can build and run the image locally:
+
+1. **Build the image locally:**
+   ```bash
+   docker build -t server-monitor .
+   ```
+
+2. **Run the container:**
+   ```bash
+   docker run -d \
+     --name server-monitor \
+     --restart always \
+     --network host \
+     -e PORT=8080 \
+     -e PANEL_USERNAME=admin \
+     -e PANEL_PASSWORD=admin \
+     -e PROCFS_PATH=/host/proc \
+     -v /proc:/host/proc:ro \
+     -v /sys:/host/sys:ro \
+     -v $(pwd)/metrics.db:/app/metrics.db \
+     server-monitor
+   ```
+
+### Option B: Local Docker Compose (Simplest)
+To build and run using our pre-bundled `docker-compose.yml`:
+```bash
+# Build and start container in the background
+docker compose up -d --build
+```
+
+### Option C: Remote Pull from Docker Hub
+If you want to pull a pre-built image from Docker Hub (if available):
 ```bash
 docker run -d \
   --name server-monitor \
@@ -43,31 +78,9 @@ docker run -d \
   morezageek/server-monitor:latest
 ```
 
-### Running with Docker Compose
-1. Create a `docker-compose.yml` file:
-   ```yaml
-   version: '3.8'
-   services:
-     server-monitor:
-       image: morezageek/server-monitor:latest
-       container_name: server-monitor
-       restart: always
-       network_mode: host
-       environment:
-         - PORT=8080
-         - PANEL_USERNAME=admin
-         - PANEL_PASSWORD=admin  # Set a secure password
-         - PROCFS_PATH=/host/proc
-       volumes:
-         - /proc:/host/proc:ro
-         - /sys:/host/sys:ro
-         - ./metrics.db:/app/metrics.db
-   ```
-2. Start the container:
-   ```bash
-   docker compose up -d
-   ```
-3. Open your browser and navigate to `http://your-server-ip:8080`. Log in with user `admin` and password `admin`.
+### Accessing the Panel
+After launching the container, open your browser and navigate to `http://your-server-ip:8080`. Log in with your specified `PANEL_USERNAME` and `PANEL_PASSWORD`.
+
 
 ## 🛠 Manual Setup
 
