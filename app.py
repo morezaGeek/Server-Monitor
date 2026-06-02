@@ -775,6 +775,44 @@ async def update_settings(settings: SSLSettings, username: str = Depends(get_cur
     return {"status": "Settings applied. Service restarting."}
 
 
+@app.post("/api/update")
+async def update_panel(username: str = Depends(get_current_username)):
+    """Trigger systemd-run to execute install.sh to pull and upgrade the panel detached."""
+    import subprocess
+    
+    install_script = "/opt/server-monitor/install.sh"
+    if not os.path.exists(install_script):
+        # Fallback if installed in a different folder
+        install_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "install.sh")
+        
+    if not os.path.exists(install_script):
+        return {"error": "install.sh script not found."}
+        
+    try:
+        # Launch detached via systemd-run so it survives the panel service stop/restart
+        # We use a unique transient unit name to avoid unit conflicts
+        unit_name = f"server-monitor-update-{int(time.time())}"
+        cmd = [
+            "systemd-run",
+            f"--unit={unit_name}",
+            "--description=Server Monitor Self Update",
+            "--remain-after-exit=no",
+            "bash", install_script
+        ]
+        
+        # Popen starts it asynchronously and returns immediately
+        subprocess.Popen(cmd)
+        return {"status": "success", "message": "Update started in background. The panel will restart in a few seconds."}
+    except Exception as e:
+        # Fallback to setsid double-fork nohup if systemd-run is not available
+        try:
+            cmd_str = f"nohup bash {install_script} >/dev/null 2>&1 &"
+            subprocess.Popen(cmd_str, shell=True, preexec_fn=os.setsid)
+            return {"status": "success", "message": "Update started via fallback background process."}
+        except Exception as err:
+            return {"error": f"Failed to launch update process: {str(e)} (Fallback error: {str(err)})"}
+
+
 @app.get("/")
 async def index(username: str = Depends(get_current_username)):
     return FileResponse(os.path.join(STATIC_DIR, "index.html"))
