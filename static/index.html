@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=52">
+    <link rel="stylesheet" href="/static/style.css?v=53">
 </head>
 
 <body>
@@ -590,7 +590,7 @@
 
         <!-- Footer -->
         <footer class="footer">
-            <p>Server Monitor Dashboard v1.2.2 &copy; 2026 By morezaGeek</p>
+            <p>Server Monitor Dashboard v1.3.0 &copy; 2026 By morezaGeek</p>
         </footer>
     </div>
 
@@ -763,10 +763,110 @@
         </div>
     </div>
 
+    <!-- Benchmark Overlay -->
+    <div id="benchmarkOverlay" class="login-overlay hidden">
+        <div class="login-box benchmark-modal-box">
+            <button id="closeBenchmark" class="btn-close-overlay">×</button>
+            <div class="login-header">
+                <h2>Server Performance Benchmark</h2>
+                <p>Multi-dimensional real-world speed test</p>
+            </div>
+
+            <!-- Running / Progress State -->
+            <div id="benchmarkRunningState" class="benchmark-running-state">
+                <div class="benchmark-spinner-container">
+                    <div class="benchmark-spinner"></div>
+                    <div class="benchmark-progress-bar-container">
+                        <div class="benchmark-progress-bar" id="benchmarkProgressBar" style="width: 0%;"></div>
+                        <span class="benchmark-progress-percent" id="benchmarkProgressPercent">0%</span>
+                    </div>
+                    <div class="benchmark-progress-text" id="benchmarkProgressText">Preparing benchmark...</div>
+                </div>
+                <button id="btnStopBenchmarkModal" class="btn-benchmark btn-stop" style="margin: 20px auto 0 auto; display: block; width: fit-content;">
+                    <span class="btn-text">Stop Benchmark</span>
+                </button>
+            </div>
+
+            <!-- Result State -->
+            <div id="benchmarkResultState" class="benchmark-result-state hidden">
+                <div class="overall-score-section">
+                    <div class="overall-score-circle">
+                        <span class="overall-score-num" id="modalOverallScore">0</span>
+                        <span class="overall-score-lbl">Overall Score</span>
+                    </div>
+                </div>
+
+                <div class="benchmark-grid">
+                    <!-- CPU Single Core -->
+                    <div class="benchmark-grid-card">
+                        <div class="bg-card-icon cpu-single-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="4" y="4" width="16" height="16" rx="2" />
+                                <path d="M9 9h6v6H9z" />
+                            </svg>
+                        </div>
+                        <div class="bg-card-details">
+                            <h4>CPU Single-Core</h4>
+                            <div class="bg-card-score" id="scoreCpuSingle">0 pts</div>
+                            <div class="bg-card-meta" id="metaCpuSingle">0 tasks/sec</div>
+                        </div>
+                    </div>
+
+                    <!-- CPU Multi Core -->
+                    <div class="benchmark-grid-card">
+                        <div class="bg-card-icon cpu-multi-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="2" y="2" width="20" height="20" rx="2" />
+                                <path d="M6 6h4v4H6zM14 6h4v4h-4zM6 14h4v4H6zM14 14h4v4h-4z" />
+                            </svg>
+                        </div>
+                        <div class="bg-card-details">
+                            <h4>CPU Multi-Core</h4>
+                            <div class="bg-card-score" id="scoreCpuMulti">0 pts</div>
+                            <div class="bg-card-meta" id="metaCpuMulti">0 tasks/sec</div>
+                        </div>
+                    </div>
+
+                    <!-- RAM Speed -->
+                    <div class="benchmark-grid-card">
+                        <div class="bg-card-icon ram-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="2" y="6" width="20" height="12" rx="2" />
+                                <line x1="6" y1="10" x2="6" y2="14" />
+                                <line x1="12" y1="10" x2="12" y2="14" />
+                                <line x1="18" y1="10" x2="18" y2="14" />
+                            </svg>
+                        </div>
+                        <div class="bg-card-details">
+                            <h4>Memory (RAM)</h4>
+                            <div class="bg-card-score" id="scoreRam">0 pts</div>
+                            <div class="bg-card-meta" id="metaRam">0.0 GB/s Read-Write</div>
+                        </div>
+                    </div>
+
+                    <!-- Disk Speed -->
+                    <div class="benchmark-grid-card">
+                        <div class="bg-card-icon disk-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 12c0-5.52-4.48-10-10-10S2 6.48 2 12s4.48 10 10 10 10-4.48 10-10z" />
+                                <path d="M12 6v6l4 2" />
+                            </svg>
+                        </div>
+                        <div class="bg-card-details">
+                            <h4>Disk I/O Speed</h4>
+                            <div class="bg-card-score" id="scoreDisk">0 pts</div>
+                            <div class="bg-card-meta" id="metaDisk">Write: 0 MB/s | Read: 0 MB/s</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script
         src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-    <script src="/static/app.js?v=45"></script>
+    <script src="/static/app.js?v=46"></script>
 </body>
 
 </html>
