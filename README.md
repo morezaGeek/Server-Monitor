@@ -2,7 +2,7 @@
 
 A professional, real-time server monitoring dashboard with a high-performance backend and a sleek, glassmorphic frontend. Track your system performance and manage your server directly from your browser.
 
-![Dashboard Preview](static/preview.png)
+![Dashboard Preview](https://raw.githubusercontent.com/morezaGeek/Server-Monitor/main/static/preview.png)
 
 ## ✨ Features
 
