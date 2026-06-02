@@ -279,7 +279,10 @@ do_install() {
     echo -e "${GREEN}✔ Dependencies installed${NC}"
 
     # Clone/update
-    if [ -d "$INSTALL_DIR/.git" ]; then
+    if [ "$SKIP_GIT" = "true" ]; then
+        echo -e "${YELLOW}▸ Skipping GitHub pull (using local files)...${NC}"
+        cd "$INSTALL_DIR"
+    elif [ -d "$INSTALL_DIR/.git" ]; then
         echo -e "${BLUE}▸ Pulling latest version from GitHub...${NC}"
         cd "$INSTALL_DIR"
         git fetch --all -q
