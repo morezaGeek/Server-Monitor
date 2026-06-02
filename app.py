@@ -776,7 +776,7 @@ async def update_settings(settings: SSLSettings, username: str = Depends(get_cur
 
 
 @app.post("/api/update")
-async def update_panel(username: str = Depends(get_current_username)):
+async def update_panel(skip_git: bool = Query(False), username: str = Depends(get_current_username)):
     """Trigger systemd-run to execute install.sh to pull and upgrade the panel detached."""
     import subprocess
     
@@ -792,11 +792,17 @@ async def update_panel(username: str = Depends(get_current_username)):
         # Launch detached via systemd-run so it survives the panel service stop/restart
         # We use a unique transient unit name to avoid unit conflicts
         unit_name = f"server-monitor-update-{int(time.time())}"
+        
+        env_vars = []
+        if skip_git:
+            env_vars = ["--setenv=SKIP_GIT=true"]
+            
         cmd = [
             "systemd-run",
             f"--unit={unit_name}",
             "--description=Server Monitor Self Update",
-            "--remain-after-exit=no",
+            "--remain-after-exit=no"
+        ] + env_vars + [
             "bash", install_script
         ]
         
@@ -806,7 +812,8 @@ async def update_panel(username: str = Depends(get_current_username)):
     except Exception as e:
         # Fallback to setsid double-fork nohup if systemd-run is not available
         try:
-            cmd_str = f"nohup bash {install_script} >/dev/null 2>&1 &"
+            env_prefix = "SKIP_GIT=true " if skip_git else ""
+            cmd_str = f"nohup {env_prefix}bash {install_script} >/dev/null 2>&1 &"
             subprocess.Popen(cmd_str, shell=True, preexec_fn=os.setsid)
             return {"status": "success", "message": "Update started via fallback background process."}
         except Exception as err:
