@@ -1484,62 +1484,241 @@
     }
 
     // ─── CPU Benchmark ───────────────────────────────────────────────────────
+    // ─── CPU/System Benchmark ───────────────────────────────────────────────────
     function setupBenchmark() {
         const btn = document.getElementById("btnBenchmarkCpu");
-        const btnStop = document.getElementById("btnStopBenchmark");
-        const loader = btn ? btn.querySelector(".btn-loader") : null;
-        const resultDiv = document.getElementById("benchmarkResult");
-        const scoreSpan = document.getElementById("benchmarkScore");
+        const btnStopMain = document.getElementById("btnStopBenchmark"); // main page stop
+        const btnStopModal = document.getElementById("btnStopBenchmarkModal"); // modal stop
+        
+        const overlay = document.getElementById("benchmarkOverlay");
+        const closeBtn = document.getElementById("closeBenchmark");
+        
+        const runningState = document.getElementById("benchmarkRunningState");
+        const resultState = document.getElementById("benchmarkResultState");
+        
+        const progressBar = document.getElementById("benchmarkProgressBar");
+        const progressPercent = document.getElementById("benchmarkProgressPercent");
+        const progressText = document.getElementById("benchmarkProgressText");
+        
+        // Modal Results
+        const modalOverallScore = document.getElementById("modalOverallScore");
+        const scoreCpuSingle = document.getElementById("scoreCpuSingle");
+        const metaCpuSingle = document.getElementById("metaCpuSingle");
+        const scoreCpuMulti = document.getElementById("scoreCpuMulti");
+        const metaCpuMulti = document.getElementById("metaCpuMulti");
+        const scoreRam = document.getElementById("scoreRam");
+        const metaRam = document.getElementById("metaRam");
+        const scoreDisk = document.getElementById("scoreDisk");
+        const metaDisk = document.getElementById("metaDisk");
+        
+        // Also main page results
+        const mainResultDiv = document.getElementById("benchmarkResult");
+        const mainScoreSpan = document.getElementById("benchmarkScore");
 
-        if (!btn || !btnStop || !loader || !resultDiv || !scoreSpan) return;
+        if (!btn || !overlay || !closeBtn || !runningState || !resultState || !progressBar || !progressPercent || !progressText) return;
+
+        let progressInterval = null;
+        let activeProgress = 0;
+        let isRunning = false;
+
+        // Helper: Reset and open modal
+        function openModal() {
+            overlay.classList.remove("hidden");
+            document.body.style.overflow = "hidden"; // disable scroll
+            
+            // Show running state, hide results
+            runningState.classList.remove("hidden");
+            resultState.classList.add("hidden");
+            
+            progressBar.style.width = "0%";
+            progressPercent.textContent = "0%";
+            progressText.textContent = "Initializing benchmark...";
+            activeProgress = 0;
+        }
+
+        // Helper: Close modal
+        function closeModal() {
+            if (isRunning) return; // don't close while running unless stopped
+            overlay.classList.add("hidden");
+            document.body.style.overflow = ""; // restore scroll
+        }
+
+        closeBtn.addEventListener("click", closeModal);
+        overlay.addEventListener("click", (e) => {
+            if (e.target === overlay) closeModal();
+        });
+
+        // Helper: Smoothly animate overall score counter
+        function animateScore(element, endVal) {
+            let current = 0;
+            if (endVal <= 0) {
+                element.textContent = "0";
+                return;
+            }
+            const duration = 1200; // 1.2s total duration
+            const startTime = performance.now();
+
+            function update(now) {
+                const elapsed = now - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                // Ease out cubic
+                const easeProgress = 1 - Math.pow(1 - progress, 3);
+                current = Math.floor(easeProgress * endVal);
+                element.textContent = current.toLocaleString();
+
+                if (progress < 1) {
+                    requestAnimationFrame(update);
+                } else {
+                    element.textContent = endVal.toLocaleString();
+                }
+            }
+            requestAnimationFrame(update);
+        }
+
+        // Helper: Stop benchmark
+        async function stopBenchmark() {
+            try {
+                if (btnStopMain) {
+                    btnStopMain.disabled = true;
+                    btnStopMain.querySelector('.btn-text').textContent = "Stopping...";
+                }
+                if (btnStopModal) {
+                    btnStopModal.disabled = true;
+                    btnStopModal.querySelector('.btn-text').textContent = "Stopping...";
+                }
+                
+                await fetch("/api/benchmark/cpu/stop");
+                
+                // Clear interval
+                if (progressInterval) clearInterval(progressInterval);
+                progressText.textContent = "Benchmark stopped by user.";
+                
+                isRunning = false;
+                setTimeout(() => {
+                    overlay.classList.add("hidden");
+                    document.body.style.overflow = "";
+                    
+                    // Reset buttons
+                    if (btnStopMain) {
+                        btnStopMain.disabled = false;
+                        btnStopMain.querySelector('.btn-text').textContent = "Stop";
+                        btnStopMain.classList.add("hidden");
+                    }
+                    if (btnStopModal) {
+                        btnStopModal.disabled = false;
+                        btnStopModal.querySelector('.btn-text').textContent = "Stop Benchmark";
+                    }
+                    btn.disabled = false;
+                    btn.querySelector('.btn-text').textContent = "Run Benchmark";
+                }, 1000);
+            } catch (err) {
+                console.error("Failed to stop benchmark:", err);
+            }
+        }
 
         btn.addEventListener("click", async () => {
-            // UI Loading State
+            if (isRunning) return;
+            isRunning = true;
+            openModal();
+
+            // Set main layout button state
             btn.disabled = true;
             btn.querySelector('.btn-text').textContent = "Running...";
-            loader.classList.remove("hidden");
-            btnStop.classList.remove("hidden");
-            resultDiv.classList.add("hidden");
-            scoreSpan.textContent = "—";
+            if (btnStopMain) btnStopMain.classList.remove("hidden");
+
+            // Start smooth progress loading bar
+            // Total benchmark takes ~6.5 seconds.
+            // 6500ms / 100 steps = 65ms per 1% increment.
+            progressInterval = setInterval(() => {
+                if (activeProgress < 99) {
+                    activeProgress += 1;
+                    progressBar.style.width = activeProgress + "%";
+                    progressPercent.textContent = activeProgress + "%";
+
+                    // Dynamic stages messages based on progress
+                    if (activeProgress < 30) {
+                        progressText.textContent = `Running Single-Core CPU test... (${activeProgress}%)`;
+                    } else if (activeProgress < 60) {
+                        progressText.textContent = `Running Multi-Core CPU test... (${activeProgress}%)`;
+                    } else if (activeProgress < 80) {
+                        progressText.textContent = `Measuring Memory (RAM) speed... (${activeProgress}%)`;
+                    } else {
+                        progressText.textContent = `Measuring Disk Read/Write speed... (${activeProgress}%)`;
+                    }
+                }
+            }, 65);
 
             try {
                 const res = await fetch("/api/benchmark/cpu");
                 const data = await res.json();
 
+                if (progressInterval) clearInterval(progressInterval);
+
                 if (data.error) {
-                    scoreSpan.textContent = data.error;
-                } else if (data.status === "stopped" || (data.score === 0 && !data.error)) {
-                    scoreSpan.textContent = "Stopped";
+                    progressText.textContent = data.error;
+                    if (mainScoreSpan) mainScoreSpan.textContent = "Error";
+                    isRunning = false;
+                } else if (data.status === "stopped") {
+                    progressText.textContent = "Benchmark stopped.";
+                    if (mainScoreSpan) mainScoreSpan.textContent = "Stopped";
+                    isRunning = false;
                 } else {
-                    scoreSpan.textContent = data.score.toLocaleString();
+                    // Set progress to 100%
+                    progressBar.style.width = "100%";
+                    progressPercent.textContent = "100%";
+                    progressText.textContent = "Benchmark complete! Loading results...";
+
+                    setTimeout(() => {
+                        // Switch modal views
+                        runningState.classList.add("hidden");
+                        resultState.classList.remove("hidden");
+                        
+                        // Populate sub-scores and stats in overlay
+                        scoreCpuSingle.textContent = `${data.cpu_single_score} pts`;
+                        metaCpuSingle.textContent = `${data.cpu_single_val.toLocaleString()} real-world tasks/sec`;
+                        
+                        scoreCpuMulti.textContent = `${data.cpu_multi_score} pts`;
+                        const scaling = (data.cpu_single_val > 0) ? (data.cpu_multi_val / data.cpu_single_val).toFixed(1) : "0";
+                        metaCpuMulti.textContent = `${data.cpu_multi_val.toLocaleString()} tasks/sec (${scaling}x speedup)`;
+                        
+                        scoreRam.textContent = `${data.ram_score} pts`;
+                        metaRam.textContent = `${data.ram_val_gbps} GB/s Read-Write`;
+                        
+                        scoreDisk.textContent = `${data.disk_score} pts`;
+                        metaDisk.textContent = `Write: ${data.disk_write_mbps} MB/s | Read: ${data.disk_read_mbps} MB/s`;
+
+                        // Animate overall score circular counter
+                        animateScore(modalOverallScore, data.score);
+
+                        // Also update the main dashboard card score
+                        if (mainScoreSpan) mainScoreSpan.textContent = data.score.toLocaleString();
+                        if (mainResultDiv) mainResultDiv.classList.remove("hidden");
+
+                        isRunning = false;
+                    }, 500);
                 }
-                resultDiv.classList.remove("hidden");
             } catch (err) {
                 console.error(err);
-                scoreSpan.textContent = "Error";
-                resultDiv.classList.remove("hidden");
+                if (progressInterval) clearInterval(progressInterval);
+                progressText.textContent = "An error occurred during testing.";
+                if (mainScoreSpan) mainScoreSpan.textContent = "Error";
+                isRunning = false;
             } finally {
-                // Restore UI
+                // Restore main dashboard buttons
                 btn.disabled = false;
                 btn.querySelector('.btn-text').textContent = "Run Benchmark";
-                loader.classList.add("hidden");
-                btnStop.classList.add("hidden");
+                if (btnStopMain) btnStopMain.classList.add("hidden");
             }
         });
 
-        btnStop.addEventListener("click", async () => {
-            try {
-                // Disable stop button while stopping
-                btnStop.disabled = true;
-                btnStop.querySelector('.btn-text').textContent = "Stopping...";
-                await fetch("/api/benchmark/cpu/stop");
-            } catch (err) {
-                console.error("Failed to stop benchmark:", err);
-            } finally {
-                btnStop.disabled = false;
-                btnStop.querySelector('.btn-text').textContent = "Stop";
-            }
-        });
+        // Click listeners for stop
+        if (btnStopMain) {
+            btnStopMain.addEventListener("click", stopBenchmark);
+        }
+        if (btnStopModal) {
+            btnStopModal.addEventListener("click", stopBenchmark);
+        }
     }
 
     function setupSettings() {
