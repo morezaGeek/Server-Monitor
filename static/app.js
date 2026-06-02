@@ -602,6 +602,12 @@
         document.getElementById("headerSubtitle").textContent =
             `Last updated: ${new Date().toLocaleTimeString()}`;
 
+        // Panel Version
+        if (data.system && data.system.version) {
+            const verEl = document.getElementById("panelVersion");
+            if (verEl) verEl.textContent = "v" + data.system.version;
+        }
+
         // CPU Gauge
         setGauge("cpuGaugeFill", data.cpu.percent);
         animateNumber("cpuPercent", data.cpu.percent);
@@ -1679,8 +1685,15 @@
                         metaCpuSingle.textContent = `${data.cpu_single_val.toLocaleString()} real-world tasks/sec`;
                         
                         scoreCpuMulti.textContent = `${data.cpu_multi_score} pts`;
-                        const scaling = (data.cpu_single_val > 0) ? (data.cpu_multi_val / data.cpu_single_val).toFixed(1) : "0";
-                        metaCpuMulti.textContent = `${data.cpu_multi_val.toLocaleString()} tasks/sec (${scaling}x speedup)`;
+                        const labelCpuMulti = document.getElementById("labelCpuMulti");
+                        if (data.cores === 1) {
+                            if (labelCpuMulti) labelCpuMulti.textContent = "CPU Stress Test";
+                            metaCpuMulti.textContent = `${data.cpu_multi_val.toLocaleString()} tasks/sec (Sustained)`;
+                        } else {
+                            if (labelCpuMulti) labelCpuMulti.textContent = "CPU Multi-Core";
+                            const scaling = (data.cpu_single_val > 0) ? (data.cpu_multi_val / data.cpu_single_val).toFixed(1) : "0";
+                            metaCpuMulti.textContent = `${data.cpu_multi_val.toLocaleString()} tasks/sec (${scaling}x speedup)`;
+                        }
                         
                         scoreRam.textContent = `${data.ram_score} pts`;
                         metaRam.textContent = `${data.ram_val_gbps} GB/s Read-Write`;
@@ -2110,6 +2123,49 @@
         }
     }
 
+    function checkForUpdates() {
+        fetch("https://api.github.com/repos/morezaGeek/Server-Monitor/releases/latest")
+            .then(res => res.json())
+            .then(release => {
+                if (release && release.tag_name) {
+                    const latest = release.tag_name.replace(/^v/, "");
+                    const current = "1.3.3";
+                    
+                    const parseVersion = (v) => v.split(".").map(Number);
+                    const currParts = parseVersion(current);
+                    const lateParts = parseVersion(latest);
+                    
+                    let hasNewUpdate = false;
+                    for (let i = 0; i < Math.max(currParts.length, lateParts.length); i++) {
+                        const c = currParts[i] || 0;
+                        const l = lateParts[i] || 0;
+                        if (l > c) {
+                            hasNewUpdate = true;
+                            break;
+                        } else if (c > l) {
+                            break;
+                        }
+                    }
+
+                    if (hasNewUpdate) {
+                        const btnUpdate = document.getElementById("btnUpdatePanel");
+                        if (btnUpdate) {
+                            let badge = document.getElementById("updateBadge");
+                            if (!badge) {
+                                badge = document.createElement("span");
+                                badge.id = "updateBadge";
+                                badge.className = "update-available-badge";
+                                badge.textContent = `New: v${latest}`;
+                                btnUpdate.style.position = "relative";
+                                btnUpdate.appendChild(badge);
+                            }
+                        }
+                    }
+                }
+            })
+            .catch(err => console.log("Failed to check GitHub releases:", err));
+    }
+
     function init() {
         injectSVGGradients();
         setupThemeToggle();
@@ -2121,6 +2177,7 @@
         setupSettings();
         setupVirtualBrowser();
         setupSelfUpdate();
+        checkForUpdates();
 
         // Fetch interfaces first, then initial data + start timers
         fetchInterfaces().then(() => {

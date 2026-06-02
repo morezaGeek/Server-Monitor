@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=56">
+    <link rel="stylesheet" href="/static/style.css?v=57">
 </head>
 
 <body>
@@ -606,7 +606,7 @@
 
         <!-- Footer -->
         <footer class="footer">
-            <p>Server Monitor Dashboard v1.3.2 &copy; 2026 By morezaGeek</p>
+            <p>Server Monitor Dashboard <span id="panelVersion">v1.3.3</span> &copy; 2026 By morezaGeek</p>
         </footer>
     </div>
 
@@ -837,7 +837,7 @@
                             </svg>
                         </div>
                         <div class="bg-card-details">
-                            <h4>CPU Multi-Core</h4>
+                            <h4 id="labelCpuMulti">CPU Multi-Core</h4>
                             <div class="bg-card-score" id="scoreCpuMulti">0 pts</div>
                             <div class="bg-card-meta" id="metaCpuMulti">0 tasks/sec</div>
                         </div>
@@ -902,7 +902,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script
         src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-    <script src="/static/app.js?v=48"></script>
+    <script src="/static/app.js?v=49"></script>
 </body>
 
 </html>

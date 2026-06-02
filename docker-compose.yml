@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  server-monitor:
+    build: .
+    container_name: server-monitor
+    restart: always
+    # Share host network namespace to monitor all host interfaces and actual network speed
+    network_mode: host
+    environment:
+      - PORT=8080
+      - PANEL_USERNAME=admin
+      - PANEL_PASSWORD=admin  # Choose a secure password for your panel
+      - PROCFS_PATH=/host/proc
+    volumes:
+      # Mount host's proc filesystem to monitor host CPU, RAM, and active processes
+      - /proc:/host/proc:ro
+      # Mount host's sys filesystem to monitor real-time disk activity
+      - /sys:/host/sys:ro
+      # Persist historical database across container restarts
+      - ./metrics.db:/app/metrics.db
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

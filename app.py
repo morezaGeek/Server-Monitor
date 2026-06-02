@@ -42,6 +42,7 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metrics.db")
 COLLECT_INTERVAL = 30  # seconds
 RETENTION_DAYS = 31
 PORT = 8080
+VERSION = "1.3.3"
 
 # ─── Database ────────────────────────────────────────────────────────────────
 
@@ -420,7 +421,8 @@ def get_cpu_model_name():
     global _cpu_model_cache
     if _cpu_model_cache: return _cpu_model_cache
     try:
-        with open("/proc/cpuinfo", "r") as f:
+        proc_path = os.path.join(os.environ.get("PROCFS_PATH", "/proc"), "cpuinfo")
+        with open(proc_path, "r") as f:
             for line in f:
                 if line.startswith("model name"):
                     _cpu_model_cache = line.split(":", 1)[1].strip()
@@ -941,7 +943,8 @@ async def current_metrics(username: str = Depends(get_current_username)):
             "load_avg_1m": round(load_avg[0], 2),
             "load_avg_5m": round(load_avg[1], 2),
             "load_avg_15m": round(load_avg[2], 2),
-            "os": os_info
+            "os": os_info,
+            "version": VERSION
         },
         "connections": _get_connection_counts()
     }

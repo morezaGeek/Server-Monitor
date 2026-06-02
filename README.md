@@ -23,6 +23,52 @@ To install and start the dashboard on a fresh Linux server (Debian, Ubuntu, RHEL
 curl -sL https://raw.githubusercontent.com/morezaGeek/Server-Monitor/main/install.sh | sudo bash
 ```
 
+## 🐳 Docker Installation (Recommended for Containerized Environments)
+
+If you prefer to run Server Monitor in a fully isolated container while maintaining accurate host-level metric tracking (network interfaces, disk throughput, real-time memory usage, and processes), you can deploy it using Docker and Docker Compose.
+
+### Quick Run with Docker
+```bash
+docker run -d \
+  --name server-monitor \
+  --restart always \
+  --network host \
+  -e PORT=8080 \
+  -e PANEL_USERNAME=admin \
+  -e PANEL_PASSWORD=admin \
+  -e PROCFS_PATH=/host/proc \
+  -v /proc:/host/proc:ro \
+  -v /sys:/host/sys:ro \
+  -v $(pwd)/metrics.db:/app/metrics.db \
+  morezageek/server-monitor:latest
+```
+
+### Running with Docker Compose
+1. Create a `docker-compose.yml` file:
+   ```yaml
+   version: '3.8'
+   services:
+     server-monitor:
+       image: morezageek/server-monitor:latest
+       container_name: server-monitor
+       restart: always
+       network_mode: host
+       environment:
+         - PORT=8080
+         - PANEL_USERNAME=admin
+         - PANEL_PASSWORD=admin  # Set a secure password
+         - PROCFS_PATH=/host/proc
+       volumes:
+         - /proc:/host/proc:ro
+         - /sys:/host/sys:ro
+         - ./metrics.db:/app/metrics.db
+   ```
+2. Start the container:
+   ```bash
+   docker compose up -d
+   ```
+3. Open your browser and navigate to `http://your-server-ip:8080`. Log in with user `admin` and password `admin`.
+
 ## 🛠 Manual Setup
 
 1. **Clone the repository**:
