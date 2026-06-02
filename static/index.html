@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=53">
+    <link rel="stylesheet" href="/static/style.css?v=54">
 </head>
 
 <body>
@@ -65,6 +65,13 @@
                         </svg>
                         SSH
                     </a>
+                    <button class="settings-btn" id="btnUpdatePanel" title="Update / Reinstall Panel" style="background: linear-gradient(135deg, #f59e0b, #ef4444); color: white; border: none; font-weight: 500;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
+                            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+                        </svg>
+                        Update
+                    </button>
                     <button class="settings-btn" id="btnSettingsOpen" title="Panel Settings" style="display: none;">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -590,7 +597,7 @@
 
         <!-- Footer -->
         <footer class="footer">
-            <p>Server Monitor Dashboard v1.3.0 &copy; 2026 By morezaGeek</p>
+            <p>Server Monitor Dashboard v1.3.1 &copy; 2026 By morezaGeek</p>
         </footer>
     </div>
 
@@ -863,10 +870,30 @@
         </div>
     </div>
 
+    <!-- Update Overlay -->
+    <div id="updateOverlay" class="login-overlay hidden">
+        <div class="login-box settings-box" style="text-align: center; max-width: 450px;">
+            <div class="login-header">
+                <h2>Panel Updating</h2>
+                <p id="updateStatusText">Starting detached upgrade process...</p>
+            </div>
+            <div class="benchmark-spinner-container" style="margin: 20px 0;">
+                <div class="benchmark-spinner"></div>
+            </div>
+            <div class="benchmark-progress-bar-container" style="margin: 20px auto;">
+                <div class="benchmark-progress-bar" id="updateProgressBar" style="width: 0%;"></div>
+                <span class="benchmark-progress-percent" id="updateProgressPercent">0%</span>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">
+                The panel service is restarting in the background. The page will reload automatically as soon as it is back online.
+            </p>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script
         src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-    <script src="/static/app.js?v=46"></script>
+    <script src="/static/app.js?v=47"></script>
 </body>
 
 </html>
