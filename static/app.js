@@ -1994,6 +1994,115 @@
         checkBrowserStatus();
     }
 
+    // ─── Detached Self Update ────────────────────────────────────────────────
+    function setupSelfUpdate() {
+        const btn = document.getElementById("btnUpdatePanel");
+        const overlay = document.getElementById("updateOverlay");
+        const statusText = document.getElementById("updateStatusText");
+        const progressBar = document.getElementById("updateProgressBar");
+        const progressPercent = document.getElementById("updateProgressPercent");
+
+        if (!btn || !overlay || !statusText || !progressBar || !progressPercent) return;
+
+        let updateInterval = null;
+        let pollInterval = null;
+        let currentProgress = 0;
+        let isUpdating = false;
+
+        async function checkServerOnline() {
+            try {
+                // Fetch simple lightweight endpoint without caching
+                const res = await fetch("/api/current?t=" + Date.now());
+                if (res.status === 200) {
+                    return true;
+                }
+            } catch (err) {
+                // Server is down
+            }
+            return false;
+        }
+
+        function startPolling() {
+            let attempts = 0;
+            const maxAttempts = 30; // 60 seconds max polling
+
+            pollInterval = setInterval(async () => {
+                attempts += 1;
+                statusText.textContent = `Waiting for server to restart... Attempt ${attempts}/${maxAttempts}`;
+
+                const online = await checkServerOnline();
+                if (online) {
+                    clearInterval(pollInterval);
+                    if (updateInterval) clearInterval(updateInterval);
+                    
+                    progressBar.style.width = "100%";
+                    progressPercent.textContent = "100%";
+                    statusText.textContent = "Server is back online! Refreshing...";
+                    
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                } else if (attempts >= maxAttempts) {
+                    clearInterval(pollInterval);
+                    if (updateInterval) clearInterval(updateInterval);
+                    statusText.textContent = "Update timed out. Please refresh manually.";
+                    // Enable close click
+                    overlay.addEventListener("click", () => {
+                        overlay.classList.add("hidden");
+                        document.body.style.overflow = "";
+                    });
+                }
+            }, 2000);
+        }
+
+        btn.addEventListener("click", async () => {
+            if (isUpdating) return;
+            const confirmed = confirm("آیا مایل به به‌روزرسانی و نصب مجدد مانیتور سرور هستید؟\nاین عملیات حدود ۲۰ تا ۳۰ ثانیه زمان می‌برد و پنل به طور خودکار ریستارت خواهد شد.");
+            if (!confirmed) return;
+
+            isUpdating = true;
+            overlay.classList.remove("hidden");
+            document.body.style.overflow = "hidden";
+            progressBar.style.width = "0%";
+            progressPercent.textContent = "0%";
+            statusText.textContent = "Contacting backend and launching detached updater...";
+
+            // Smooth fake progress bar for visual feedback (0 to 95% over 22 seconds)
+            // 22000ms / 95 steps = ~230ms per 1% increment
+            updateInterval = setInterval(() => {
+                if (currentProgress < 95) {
+                    currentProgress += 1;
+                    progressBar.style.width = currentProgress + "%";
+                    progressPercent.textContent = currentProgress + "%";
+                    
+                    if (currentProgress < 30) {
+                        statusText.textContent = `Fetching latest files from GitHub... (${currentProgress}%)`;
+                    } else if (currentProgress < 60) {
+                        statusText.textContent = `Installing Python dependencies... (${currentProgress}%)`;
+                    } else {
+                        statusText.textContent = `Rebuilding systemd service... (${currentProgress}%)`;
+                    }
+                }
+            }, 230);
+
+            try {
+                const res = await fetch("/api/update", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    }
+                });
+                
+                // If successful or if it fails due to network termination (as service is restarted), start polling
+                startPolling();
+            } catch (err) {
+                // Typically hits here because the fetch gets aborted or network resets due to systemd restart
+                console.log("Connection reset due to server restart. Starting offline polling...");
+                startPolling();
+            }
+        });
+    }
+
     function init() {
         injectSVGGradients();
         setupThemeToggle();
@@ -2004,6 +2113,7 @@
         setupBenchmark();
         setupSettings();
         setupVirtualBrowser();
+        setupSelfUpdate();
 
         // Fetch interfaces first, then initial data + start timers
         fetchInterfaces().then(() => {
