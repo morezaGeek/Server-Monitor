@@ -26,44 +26,27 @@ curl -sL https://raw.githubusercontent.com/morezaGeek/Server-Monitor/main/instal
 
 ## 🐳 Docker Installation (Recommended for Containerized Environments)
 
-If you prefer to run Server Monitor in a fully isolated container while maintaining accurate host-level metric tracking (network interfaces, disk throughput, real-time memory usage, and processes), you can deploy it using Docker and Docker Compose.
+If you prefer to run Server Monitor in a fully isolated container while maintaining accurate host-level metric tracking (network interfaces, disk throughput, real-time memory usage, and processes), you can deploy it using Docker.
 
 To monitor the *host* resources from inside the container, we mount the host's `/proc` and `/sys` filesystems as read-only volumes and share the host's network namespace (`--network host` or `network_mode: host`).
 
-### Option A: Local Build & Run (No Docker Hub pull required)
-If you have cloned the repository, you can build and run the image locally:
+### Option A: One-Click Installer (Recommended for Fresh Servers)
+If you have a fresh server with nothing installed (no Docker, no repositories cloned), this interactive script will install Docker automatically, initialize files, configure your settings, and start the panel in one step:
 
-1. **Build the image locally:**
-   ```bash
-   docker build -t server-monitor .
-   ```
-
-2. **Run the container:**
-   ```bash
-   docker run -d \
-     --name server-monitor \
-     --restart always \
-     --network host \
-     -e PORT=8080 \
-     -e PANEL_USERNAME=admin \
-     -e PANEL_PASSWORD=admin \
-     -e PROCFS_PATH=/host/proc \
-     -v /proc:/host/proc:ro \
-     -v /sys:/host/sys:ro \
-     -v $(pwd)/metrics.db:/app/metrics.db \
-     server-monitor
-   ```
-
-### Option B: Local Docker Compose (Simplest)
-To build and run using our pre-bundled `docker-compose.yml`:
 ```bash
-# Build and start container in the background
-docker compose up -d --build
+curl -sL https://raw.githubusercontent.com/morezaGeek/Server-Monitor/main/docker_install.sh | sudo bash
 ```
 
-### Option C: Remote Pull from Docker Hub
-If you want to pull a pre-built image from Docker Hub (if available):
+---
+
+### Option B: Remote Pull from Docker Hub
+If you already have Docker installed and want to run a pre-built image directly from Docker Hub without downloading any source code:
 ```bash
+# 1. Initialize an empty metrics file on host to avoid bind mount directory bugs
+mkdir -p /opt/server-monitor
+touch /opt/server-monitor/metrics.db
+
+# 2. Start the container
 docker run -d \
   --name server-monitor \
   --restart always \
@@ -74,12 +57,43 @@ docker run -d \
   -e PROCFS_PATH=/host/proc \
   -v /proc:/host/proc:ro \
   -v /sys:/host/sys:ro \
-  -v $(pwd)/metrics.db:/app/metrics.db \
-  morezageek/server-monitor:latest
+  -v /opt/server-monitor/metrics.db:/app/metrics.db \
+  reza13721205/server-monitor:latest
 ```
 
+---
+
+### Option C: Local Docker Compose (For Custom Builds)
+If you have cloned the repository and want to build the Docker image locally:
+
+1. **Build and run via Docker Compose:**
+   ```bash
+   docker compose up -d --build
+   ```
+
+2. **Alternatively, run via Docker CLI directly:**
+   ```bash
+   # Build the image locally
+   docker build -t server-monitor .
+
+   # Initialize file and run
+   mkdir -p /opt/server-monitor && touch /opt/server-monitor/metrics.db
+   docker run -d \
+     --name server-monitor \
+     --restart always \
+     --network host \
+     -e PORT=8080 \
+     -e PANEL_USERNAME=admin \
+     -e PANEL_PASSWORD=admin \
+     -e PROCFS_PATH=/host/proc \
+     -v /proc:/host/proc:ro \
+     -v /sys:/host/sys:ro \
+     -v /opt/server-monitor/metrics.db:/app/metrics.db \
+     server-monitor
+   ```
+
 ### Accessing the Panel
-After launching the container, open your browser and navigate to `http://your-server-ip:8080`. Log in with your specified `PANEL_USERNAME` and `PANEL_PASSWORD`.
+After launching the container, open your browser and navigate to `http://your-server-ip:8080` (or your configured port). Log in with your specified `PANEL_USERNAME` and `PANEL_PASSWORD`.
 
 ### ⚙️ Modifying Port and Credentials in Docker
 You do **not** need to rebuild the Docker image to change the dashboard's port or login credentials. All options are controlled via environment variables.
