@@ -97,11 +97,19 @@ If you ever want to change your port or login credentials:
    docker compose up -d || docker-compose up -d
    ```
 
-> [!IMPORTANT]
-> Recreating or updating the container will **not** delete your metrics history. Your historical charts are safely preserved on your host machine inside `/opt/server-monitor/metrics.db`.
-
 ### Accessing the Panel
 Open your browser and navigate to `http://your-server-ip:8080` (or whichever port you configured). Log in using your username and password.
+
+### 💾 Database Persistence & Backups
+Server Monitor uses a lightweight SQLite database (`metrics.db`) to record historical charts. By default under Docker, this file is persisted on your host machine to ensure safety during container updates or restarts.
+
+* **Database File Location on Host:** `/opt/server-monitor/metrics.db`
+* **Container Rebuild Safety:** You can safely upgrade, stop, or delete your Docker container. Your historical metrics and dashboard statistics are safe and will be automatically reloaded when a new container starts.
+* **Creating a Backup:** Since the database is a standard SQLite file, backing it up is as simple as copying it:
+  ```bash
+  cp /opt/server-monitor/metrics.db /opt/server-monitor/metrics_backup.db
+  ```
+
 
 
 
