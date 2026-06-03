@@ -109,9 +109,49 @@ Server Monitor uses a lightweight SQLite database (`metrics.db`) to record histo
   ```bash
   cp /opt/server-monitor/metrics.db /opt/server-monitor/metrics_backup.db
   ```
+### 🔒 Securing with SSL (HTTPS)
+To access your Docker-based dashboard securely via `https://yourdomain.com`, the industry-standard way is to run a lightweight reverse proxy like Nginx on the host server and secure it with a free Let's Encrypt SSL certificate.
 
+#### Step 1: Install Nginx & Certbot on your host server
+Run this command in your server terminal:
+```bash
+sudo apt update
+sudo apt install nginx certbot python3-certbot-nginx -y
+```
 
+#### Step 2: Configure Nginx reverse proxy
+Copy and paste this entire block directly into your terminal to write the proxy settings for your domain (replace `yourdomain.com` with your actual domain):
+```bash
+cat << 'EOF' > /etc/nginx/sites-available/server-monitor.conf
+server {
+    listen 80;
+    server_name yourdomain.com; # <-- Put your domain here
 
+    location / {
+        proxy_pass http://127.0.0.1:8080; # Map to the panel port
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_http_version 1.1;
+    }
+}
+EOF
+
+# Activate configuration and restart Nginx
+ln -sf /etc/nginx/sites-available/server-monitor.conf /etc/nginx/sites-enabled/
+rm -f /etc/nginx/sites-enabled/default
+systemctl restart nginx
+```
+
+#### Step 3: Get your free SSL certificate
+Run Certbot to request a Let's Encrypt SSL certificate and automatically update Nginx to support secure HTTPS:
+```bash
+sudo certbot --nginx -d yourdomain.com
+```
+Follow the interactive prompts. Once completed, your dashboard will be securely accessible at **`https://yourdomain.com`** with automated certificate renewals!
 
 ## 🛠 Manual Setup
 
