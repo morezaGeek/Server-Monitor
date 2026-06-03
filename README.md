@@ -103,8 +103,8 @@ You do **not** need to rebuild the Docker image to change the dashboard's port o
    ```yaml
    environment:
      - PORT=8085              # Change the dashboard port (e.g., 8085)
-     - PANEL_USERNAME=reza    # Change panel username
-     - PANEL_PASSWORD=mypass  # Change panel password
+     - PANEL_USERNAME=myuser  # Change panel username
+     - PANEL_PASSWORD=mypassword  # Change panel password
    ```
 2. Recreate the container with the new settings (takes 1 second):
    ```bash
@@ -121,8 +121,8 @@ docker run -d \
   --restart always \
   --network host \
   -e PORT=8085 \
-  -e PANEL_USERNAME=reza \
-  -e PANEL_PASSWORD=mypass \
+  -e PANEL_USERNAME=myuser \
+  -e PANEL_PASSWORD=mypassword \
   -e PROCFS_PATH=/host/proc \
   -v /proc:/host/proc:ro \
   -v /sys:/host/sys:ro \
