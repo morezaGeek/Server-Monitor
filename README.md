@@ -81,6 +81,45 @@ docker run -d \
 ### Accessing the Panel
 After launching the container, open your browser and navigate to `http://your-server-ip:8080`. Log in with your specified `PANEL_USERNAME` and `PANEL_PASSWORD`.
 
+### ⚙️ Modifying Port and Credentials in Docker
+You do **not** need to rebuild the Docker image to change the dashboard's port or login credentials. All options are controlled via environment variables.
+
+#### For Docker Compose:
+1. Open your `docker-compose.yml` file and update the environment variables:
+   ```yaml
+   environment:
+     - PORT=8085              # Change the dashboard port (e.g., 8085)
+     - PANEL_USERNAME=reza    # Change panel username
+     - PANEL_PASSWORD=mypass  # Change panel password
+   ```
+2. Recreate the container with the new settings (takes 1 second):
+   ```bash
+   docker compose up -d
+   ```
+
+#### For Direct `docker run`:
+If running via docker CLI directly, simply stop, remove, and launch a new container with the updated environment options:
+```bash
+docker stop server-monitor
+docker rm server-monitor
+docker run -d \
+  --name server-monitor \
+  --restart always \
+  --network host \
+  -e PORT=8085 \
+  -e PANEL_USERNAME=reza \
+  -e PANEL_PASSWORD=mypass \
+  -e PROCFS_PATH=/host/proc \
+  -v /proc:/host/proc:ro \
+  -v /sys:/host/sys:ro \
+  -v $(pwd)/metrics.db:/app/metrics.db \
+  reza13721205/server-monitor:latest
+```
+
+> [!NOTE]
+> Recreating the container will **not** delete your metrics database. Your historical charts are safely persisted in the mounted `metrics.db` on your host machine.
+
+
 
 ## 🛠 Manual Setup
 
