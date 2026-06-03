@@ -28,10 +28,10 @@ curl -sL https://raw.githubusercontent.com/morezaGeek/Server-Monitor/main/instal
 
 If you prefer to run Server Monitor in a fully isolated container while maintaining accurate host-level metric tracking (network interfaces, disk throughput, real-time memory usage, and processes), you can deploy it using Docker.
 
-To monitor the *host* resources from inside the container, we mount the host's `/proc` and `/sys` filesystems as read-only volumes and share the host's network namespace (`--network host` or `network_mode: host`).
+---
 
-### Option A: One-Click Installer (Recommended for Fresh Servers)
-If you have a fresh server with nothing installed (no Docker, no repositories cloned), this interactive script will install Docker automatically, initialize files, configure your settings, and start the panel in one step:
+### Option A: One-Click Installer (Recommended - Easiest)
+If you have a fresh server with absolutely nothing installed, this interactive script installs Docker automatically, sets up the database file, configures your port/credentials, and starts the panel in a single step:
 
 ```bash
 curl -sL https://raw.githubusercontent.com/morezaGeek/Server-Monitor/main/docker_install.sh | sudo bash
@@ -39,99 +39,69 @@ curl -sL https://raw.githubusercontent.com/morezaGeek/Server-Monitor/main/docker
 
 ---
 
-### Option B: Remote Pull from Docker Hub
-If you already have Docker installed and want to run a pre-built image directly from Docker Hub without downloading any source code:
+### Option B: Step-by-Step Docker Compose Setup
+If you want to manually set up and run Server Monitor using Docker Compose, follow these 3 simple steps.
+
+#### Step 1: Create application directory and database file
+Run these commands to prepare the required paths on your host server:
 ```bash
-# 1. Initialize an empty metrics file on host to avoid bind mount directory bugs
 mkdir -p /opt/server-monitor
 touch /opt/server-monitor/metrics.db
+```
 
-# 2. Start the container
-docker run -d \
-  --name server-monitor \
-  --restart always \
-  --network host \
-  -e PORT=8080 \
-  -e PANEL_USERNAME=admin \
-  -e PANEL_PASSWORD=admin \
-  -e PROCFS_PATH=/host/proc \
-  -v /proc:/host/proc:ro \
-  -v /sys:/host/sys:ro \
-  -v /opt/server-monitor/metrics.db:/app/metrics.db \
-  reza13721205/server-monitor:latest
+#### Step 2: Create the config file
+To prevent any text formatting or spacing errors (YAML is extremely sensitive to spaces), copy and paste this **entire block** directly into your terminal. It will write the `docker-compose.yml` file perfectly without needing any editors like `nano` or `vim`:
+
+```bash
+cat << 'EOF' > /opt/server-monitor/docker-compose.yml
+version: '3.8'
+
+services:
+  server-monitor:
+    image: reza13721205/server-monitor:latest
+    container_name: server-monitor
+    restart: always
+    network_mode: host
+    environment:
+      - PORT=8080                  # Change this if port 8080 is in use
+      - PANEL_USERNAME=admin       # Your login username
+      - PANEL_PASSWORD=admin       # Your login password
+      - PROCFS_PATH=/host/proc
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /opt/server-monitor/metrics.db:/app/metrics.db
+EOF
+```
+
+#### Step 3: Run the panel
+Run this command to download and start the application:
+```bash
+cd /opt/server-monitor
+docker compose up -d || docker-compose up -d
 ```
 
 ---
 
-### Option C: Local Docker Compose (For Custom Builds)
-If you have cloned the repository and want to build the Docker image locally:
+### ⚙️ Modifying Port or Credentials Later
+If you ever want to change your port or login credentials:
 
-1. **Build and run via Docker Compose:**
+1. Open the file to edit:
    ```bash
-   docker compose up -d --build
+   nano /opt/server-monitor/docker-compose.yml
+   ```
+2. Edit the variables inside the `environment:` section (e.g. change port to `8085`, username to `myuser`, password to `mypassword`).
+3. Save the file (`Ctrl+O`, `Enter`, `Ctrl+X`) and run:
+   ```bash
+   cd /opt/server-monitor
+   docker compose up -d || docker-compose up -d
    ```
 
-2. **Alternatively, run via Docker CLI directly:**
-   ```bash
-   # Build the image locally
-   docker build -t server-monitor .
-
-   # Initialize file and run
-   mkdir -p /opt/server-monitor && touch /opt/server-monitor/metrics.db
-   docker run -d \
-     --name server-monitor \
-     --restart always \
-     --network host \
-     -e PORT=8080 \
-     -e PANEL_USERNAME=admin \
-     -e PANEL_PASSWORD=admin \
-     -e PROCFS_PATH=/host/proc \
-     -v /proc:/host/proc:ro \
-     -v /sys:/host/sys:ro \
-     -v /opt/server-monitor/metrics.db:/app/metrics.db \
-     server-monitor
-   ```
+> [!IMPORTANT]
+> Recreating or updating the container will **not** delete your metrics history. Your historical charts are safely preserved on your host machine inside `/opt/server-monitor/metrics.db`.
 
 ### Accessing the Panel
-After launching the container, open your browser and navigate to `http://your-server-ip:8080` (or your configured port). Log in with your specified `PANEL_USERNAME` and `PANEL_PASSWORD`.
-
-### ⚙️ Modifying Port and Credentials in Docker
-You do **not** need to rebuild the Docker image to change the dashboard's port or login credentials. All options are controlled via environment variables.
-
-#### For Docker Compose:
-1. Open your `docker-compose.yml` file and update the environment variables:
-   ```yaml
-   environment:
-     - PORT=8085              # Change the dashboard port (e.g., 8085)
-     - PANEL_USERNAME=myuser  # Change panel username
-     - PANEL_PASSWORD=mypassword  # Change panel password
-   ```
-2. Recreate the container with the new settings (takes 1 second):
-   ```bash
-   docker compose up -d
-   ```
-
-#### For Direct `docker run`:
-If running via docker CLI directly, simply stop, remove, and launch a new container with the updated environment options:
-```bash
-docker stop server-monitor
-docker rm server-monitor
-docker run -d \
-  --name server-monitor \
-  --restart always \
-  --network host \
-  -e PORT=8085 \
-  -e PANEL_USERNAME=myuser \
-  -e PANEL_PASSWORD=mypassword \
-  -e PROCFS_PATH=/host/proc \
-  -v /proc:/host/proc:ro \
-  -v /sys:/host/sys:ro \
-  -v $(pwd)/metrics.db:/app/metrics.db \
-  reza13721205/server-monitor:latest
-```
-
-> [!NOTE]
-> Recreating the container will **not** delete your metrics database. Your historical charts are safely persisted in the mounted `metrics.db` on your host machine.
+Open your browser and navigate to `http://your-server-ip:8080` (or whichever port you configured). Log in using your username and password.
 
 
 
