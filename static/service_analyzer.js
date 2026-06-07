@@ -232,9 +232,8 @@
             const target = getActiveQueryTarget();
             const serviceHist = historicalData.filter(d => d.service === target);
             
-            // We want to extract throughput for the line chart's initial setup
-            // Use last 40 points
-            const tail = serviceHist.slice(-40);
+            // Use last 60 points (10 minutes of history at 10s intervals)
+            const tail = serviceHist.slice(-60);
             
             // Calculate a reasonable interval duration between points
             let interval = 10; // default raw database resolution is 10s
@@ -278,16 +277,12 @@
             throughputChart.data.datasets[0].data = realTimeHistory.map(pt => ({ x: pt.t, y: pt.down }));
             throughputChart.data.datasets[1].data = realTimeHistory.map(pt => ({ x: pt.t, y: pt.up }));
             
-            // Adjust time scale unit dynamically based on history duration
             if (realTimeHistory.length > 0) {
-                const elapsedMin = (realTimeHistory[realTimeHistory.length - 1].t - realTimeHistory[0].t) / 60000;
-                if (elapsedMin > 120) {
-                    throughputChart.options.scales.x.time.unit = "hour";
-                } else if (elapsedMin > 15) {
-                    throughputChart.options.scales.x.time.unit = "minute";
-                } else {
-                    throughputChart.options.scales.x.time.unit = "second";
-                }
+                const now = new Date();
+                const minTime = new Date(now.getTime() - 10 * 60 * 1000);
+                throughputChart.options.scales.x.min = minTime;
+                throughputChart.options.scales.x.max = now;
+                throughputChart.options.scales.x.time.unit = "second";
             }
             throughputChart.update("none");
         }
@@ -351,23 +346,19 @@
                     up: speedObj.up_mbps
                 });
 
-                // Keep only last 60 points
-                if (realTimeHistory.length > 60) {
-                    realTimeHistory.shift();
-                }
+                // Keep only points from the last 10 minutes
+                const cutoff = new Date(now.getTime() - 10 * 60 * 1000);
+                realTimeHistory = realTimeHistory.filter(pt => pt.t >= cutoff);
 
                 // Update line chart datasets directly (snappy rendering)
                 if (throughputChart) {
                     throughputChart.data.datasets[0].data = realTimeHistory.map(pt => ({ x: pt.t, y: pt.down }));
                     throughputChart.data.datasets[1].data = realTimeHistory.map(pt => ({ x: pt.t, y: pt.up }));
                     
-                    // Adjust time axis dynamically
-                    const elapsedMin = (realTimeHistory[realTimeHistory.length - 1].t - realTimeHistory[0].t) / 60000;
-                    if (elapsedMin > 15) {
-                        throughputChart.options.scales.x.time.unit = "minute";
-                    } else {
-                        throughputChart.options.scales.x.time.unit = "second";
-                    }
+                    const minTime = new Date(now.getTime() - 10 * 60 * 1000);
+                    throughputChart.options.scales.x.min = minTime;
+                    throughputChart.options.scales.x.max = now;
+                    throughputChart.options.scales.x.time.unit = "second";
                     throughputChart.update("none");
                 }
             } catch (err) {
@@ -376,7 +367,7 @@
         }
 
         await poll(); // initial poll
-        pollIntervalId = setInterval(poll, 2000); // Poll every 2 seconds
+        pollIntervalId = setInterval(poll, 10000); // Poll every 10 seconds
     }
 
     // Set active tab and toggle sub-tabs visibility

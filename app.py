@@ -43,7 +43,7 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metrics.db")
 COLLECT_INTERVAL = 30  # seconds
 RETENTION_DAYS = 31
 PORT = 8080
-VERSION = "1.0.10"
+VERSION = "1.0.11"
 
 # ─── Public IP Cache ─────────────────────────────────────────────────────────
 
@@ -435,6 +435,99 @@ class DiskSpeedTracker:
         }
 
 
+def parse_geosite_data(file_path):
+    import os
+    if not os.path.exists(file_path):
+        return {}
+    
+    with open(file_path, "rb") as f:
+        data = f.read()
+        
+    pos = 0
+    categories = {}
+    
+    def read_varint(data, pos):
+        result = 0
+        shift = 0
+        while pos < len(data):
+            b = data[pos]
+            pos += 1
+            result |= (b & 0x7f) << shift
+            if not (b & 0x80):
+                break
+            shift += 7
+        return result, pos
+
+    while pos < len(data):
+        if pos >= len(data):
+            break
+        tag = data[pos]
+        if tag != 10:
+            pos += 1
+            continue
+        pos += 1
+        
+        entry_len, pos = read_varint(data, pos)
+        entry_end = pos + entry_len
+        
+        country_code = ""
+        domains = []
+        
+        while pos < entry_end:
+            sub_tag, pos = read_varint(data, pos)
+            wire_type = sub_tag & 0x07
+            field_num = sub_tag >> 3
+            
+            if field_num == 1 and wire_type == 2:
+                str_len, pos = read_varint(data, pos)
+                country_code = data[pos:pos+str_len].decode('utf-8', 'ignore').upper()
+                pos += str_len
+            elif field_num == 2 and wire_type == 2:
+                dom_len, pos = read_varint(data, pos)
+                dom_end = pos + dom_len
+                
+                dom_type = 0
+                dom_value = ""
+                
+                while pos < dom_end:
+                    d_tag, pos = read_varint(data, pos)
+                    d_wire = d_tag & 0x07
+                    d_field = d_tag >> 3
+                    
+                    if d_field == 1 and d_wire == 0:
+                        dom_type, pos = read_varint(data, pos)
+                    elif d_field == 2 and d_wire == 2:
+                        val_len, pos = read_varint(data, pos)
+                        dom_value = data[pos:pos+val_len].decode('utf-8', 'ignore')
+                        pos += val_len
+                    else:
+                        if d_wire == 0:
+                            _, pos = read_varint(data, pos)
+                        elif d_wire == 2:
+                            skip_len, pos = read_varint(data, pos)
+                            pos += skip_len
+                        else:
+                            pos += 1
+                
+                if dom_value:
+                    domains.append((dom_type, dom_value))
+                pos = dom_end
+            else:
+                if wire_type == 0:
+                    _, pos = read_varint(data, pos)
+                elif wire_type == 2:
+                    skip_len, pos = read_varint(data, pos)
+                    pos += skip_len
+                else:
+                    pos += 1
+                    
+        if country_code:
+            categories[country_code] = domains
+        pos = entry_end
+        
+    return categories
+
+
 # ─── FastAPI App ─────────────────────────────────────────────────────────────
 
 class ServiceTrafficCollector:
@@ -478,8 +571,8 @@ class ServiceTrafficCollector:
             subprocess.run(["apt-get", "update"])
             subprocess.run(["apt-get", "install", "-y", "ipset"])
 
-        # Complete and disjoint list of domains for each service mapping
-        services_domains = {
+        # Complete and disjoint list of domains for each service mapping (fallback)
+        fallback_domains = {
             "apple": [
                 "apple.com", "apple.co", "apple-dns.net", "apple-mapkit.com", "cdn-apple.com", 
                 "icloud-content.com", "icloud.com", "itunes.com", "mzstatic.com", "aaplimg.com", 
@@ -543,6 +636,71 @@ class ServiceTrafficCollector:
                 "speedtestcustom.com", "speed.cloudflare.com", "measurementlab.net", 
                 "speedof.me", "fast.com"
             ]
+        }
+
+        # Try to parse and extract domains from geosite.dat if available
+        GEOSITE_PATH = "/usr/local/x-ui/bin/geosite.dat"
+        geosite_cats = {}
+        if os.path.exists(GEOSITE_PATH):
+            try:
+                geosite_cats = parse_geosite_data(GEOSITE_PATH)
+                print(f"[ServiceCollector] Loaded geosite.dat: {len(geosite_cats)} categories parsed.")
+            except Exception as e:
+                print(f"[ServiceCollector Warning] Failed to parse geosite.dat: {e}")
+
+        def get_geosite_domains(cat_names, default_list):
+            extracted = []
+            for name in cat_names:
+                name_upper = name.upper()
+                if name_upper in geosite_cats:
+                    for dtype, val in geosite_cats[name_upper]:
+                        # dtype: 0=Plain, 1=Regex, 2=Domain, 3=Full
+                        if dtype == 1: # Skip regex
+                            continue
+                        if dtype == 0 and "." not in val: # Skip keywords without dots
+                            continue
+                        val_clean = val.strip().lower()
+                        if val_clean:
+                            extracted.append(val_clean)
+            return list(set(default_list + extracted))
+
+        # Apple
+        apple_domains = get_geosite_domains(["APPLE"], fallback_domains["apple"])
+
+        # Meta
+        meta_domains = get_geosite_domains(["META", "FACEBOOK", "INSTAGRAM", "WHATSAPP", "THREADS"], fallback_domains["meta"])
+
+        # Google sub-services
+        google_youtube = get_geosite_domains(["YOUTUBE"], fallback_domains["google_youtube"])
+        google_play = get_geosite_domains(["GOOGLE-PLAY"], fallback_domains["google_play"])
+        google_ai = get_geosite_domains(["GOOGLE-GEMINI", "GOOGLE-DEEPMIND"], fallback_domains["google_ai"])
+        google_search = get_geosite_domains(["GOOGLE-SCHOLAR"], fallback_domains["google_search"])
+
+        # google_other (Google + Google-CN, excluding domains already captured in sub-services)
+        google_other_raw = get_geosite_domains(["GOOGLE", "GOOGLE-CN"], fallback_domains["google_other"])
+        google_sub_sets = set(google_youtube + google_play + google_ai + google_search)
+        google_other = [d for d in google_other_raw if d not in google_sub_sets]
+
+        # OpenAI, Spotify, Netflix, Telegram, Speedtest
+        openai = get_geosite_domains(["OPENAI"], fallback_domains["openai"])
+        spotify = get_geosite_domains(["SPOTIFY"], fallback_domains["spotify"])
+        netflix = get_geosite_domains(["NETFLIX"], fallback_domains["netflix"])
+        telegram = get_geosite_domains(["TELEGRAM"], fallback_domains["telegram"])
+        speedtest = get_geosite_domains(["SPEEDTEST", "CATEGORY-SPEEDTEST", "OOKLA-SPEEDTEST"], fallback_domains["speedtest"])
+
+        services_domains = {
+            "apple": apple_domains,
+            "meta": meta_domains,
+            "google_other": google_other,
+            "google_search": google_search,
+            "google_youtube": google_youtube,
+            "google_play": google_play,
+            "google_ai": google_ai,
+            "openai": openai,
+            "spotify": spotify,
+            "netflix": netflix,
+            "telegram": telegram,
+            "speedtest": speedtest
         }
 
         # 2. Create ipsets if they don't exist
