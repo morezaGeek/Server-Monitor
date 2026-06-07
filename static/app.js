@@ -24,12 +24,23 @@
         return {
             ...base,
             onHover(e, item, legend) {
-                if (_legendHover.get(legend.chart) !== item.datasetIndex) {
-                    _legendHover.set(legend.chart, item.datasetIndex);
+                if (legend.chart.canvas) {
+                    legend.chart.canvas.style.cursor = item ? 'pointer' : 'default';
+                }
+                const idx = (item && typeof item.datasetIndex !== 'undefined') ? item.datasetIndex : -1;
+                if (_legendHover.get(legend.chart) !== idx) {
+                    if (idx >= 0) {
+                        _legendHover.set(legend.chart, idx);
+                    } else {
+                        _legendHover.delete(legend.chart);
+                    }
                     legend.chart.update('none');
                 }
             },
             onLeave(e, item, legend) {
+                if (legend.chart.canvas) {
+                    legend.chart.canvas.style.cursor = 'default';
+                }
                 if (_legendHover.has(legend.chart)) {
                     _legendHover.delete(legend.chart);
                     legend.chart.update('none');
@@ -41,13 +52,12 @@
                     const hIdx = _legendHover.has(chart) ? _legendHover.get(chart) : -1;
                     const orig = Chart.defaults.plugins.legend.labels.generateLabels(chart);
                     return orig.map(lbl => {
-                        if (hIdx >= 0 && lbl.datasetIndex === hIdx) {
-                            lbl.font = {
-                                size: bl.font?.size || 11,
-                                family: bl.font?.family || "'Inter', sans-serif",
-                                weight: 'bold'
-                            };
-                        }
+                        const isHovered = (hIdx >= 0 && lbl.datasetIndex === hIdx);
+                        lbl.font = {
+                            size: bl.font?.size || 11,
+                            family: bl.font?.family || "'Inter', sans-serif",
+                            weight: isHovered ? 'bold' : 'normal'
+                        };
                         return lbl;
                     });
                 }
@@ -643,6 +653,15 @@
     // ─── Update Current Stats ────────────────────────────────────────────────
 
     function updateCurrentStats(data) {
+        // Hostname Badge
+        if (data.system && data.system.hostname) {
+            const hostEl = document.getElementById("serverHostname");
+            if (hostEl) {
+                hostEl.textContent = data.system.hostname;
+                hostEl.style.display = "inline-block";
+            }
+        }
+
         // Subtitle
         document.getElementById("headerSubtitle").textContent =
             `Last updated: ${new Date().toLocaleTimeString()}`;

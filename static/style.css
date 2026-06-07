@@ -641,7 +641,7 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
     position: relative;
-    overflow: hidden;
+    overflow: visible;
     letter-spacing: 0.02em;
     cursor: pointer;
 }
@@ -653,6 +653,7 @@
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent);
     opacity: 0;
     transition: opacity 0.3s ease;
+    border-radius: inherit;
 }
 
 .update-btn:hover {
@@ -681,7 +682,7 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
     position: relative;
-    overflow: hidden;
+    overflow: visible;
     letter-spacing: 0.02em;
     cursor: pointer;
 }
@@ -693,6 +694,7 @@
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent);
     opacity: 0;
     transition: opacity 0.3s ease;
+    border-radius: inherit;
 }
 
 .reinstall-btn:hover {
@@ -2707,4 +2709,35 @@ body {
         transform: scale(1.06);
         box-shadow: 0 4px 15px rgba(245, 158, 11, 0.6);
     }
+}
+
+/* Hostname Badge Styles */
+.hostname-badge {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: rgba(99, 102, 241, 0.12);
+    color: #6366f1;
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    margin-left: 10px;
+    vertical-align: middle;
+    letter-spacing: normal;
+    text-transform: uppercase;
+    display: none; /* Hidden by default, shown when text content is loaded */
+    -webkit-text-fill-color: initial; /* Override transparent fill of h1 */
+}
+
+/* Theme adaptation for dark/OLED themes */
+[data-theme="dark"] .hostname-badge,
+[data-theme="securecrt"] .hostname-badge,
+[data-theme="gruvbox"] .hostname-badge,
+[data-theme="tokyo-night"] .hostname-badge,
+[data-theme="monokai"] .hostname-badge,
+[data-theme="synthwave"] .hostname-badge,
+[data-theme="dracula"] .hostname-badge,
+[data-theme="oled"] .hostname-badge {
+    background: rgba(139, 92, 246, 0.15);
+    color: #a78bfa;
+    border-color: rgba(139, 92, 246, 0.3);
 }
