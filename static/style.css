@@ -2741,3 +2741,222 @@ body {
     color: #a78bfa;
     border-color: rgba(139, 92, 246, 0.3);
 }
+
+/* === Service Traffic Analyzer Custom Styles === */
+.full-width-card {
+    grid-column: span 2;
+}
+
+.service-header-title h3 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.service-subtitle {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    margin: 4px 0 0 0;
+}
+
+/* Service Tabs */
+.service-tabs-container {
+    margin: 20px 0 10px 0;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 12px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+.service-tabs-container::-webkit-scrollbar {
+    height: 4px;
+}
+
+.service-tabs-container::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+.service-tabs {
+    display: flex;
+    gap: 10px;
+    width: max-content;
+    padding-bottom: 2px;
+}
+
+.service-tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 8px 16px;
+    color: var(--text-primary);
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 0.88rem;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.service-tab:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-glow);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+}
+
+.service-tab.active {
+    background: linear-gradient(135deg, var(--cpu-start), var(--ram-start));
+    border-color: transparent;
+    color: #0f172a; /* high contrast text on light gradient */
+    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.35);
+}
+
+/* Sub-service Tabs */
+.sub-service-tabs-container {
+    display: flex;
+    margin-bottom: 20px;
+    animation: fadeInSlide 0.3s ease-out;
+}
+
+@keyframes fadeInSlide {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.sub-service-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    background: rgba(15, 23, 42, 0.15);
+    padding: 4px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+}
+
+.sub-service-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 6px 12px;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.sub-service-tab:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.sub-service-tab.active {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+/* Stats summary badges */
+.service-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.service-stat-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+}
+
+.service-stat-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+}
+
+.down-stat::after { background: var(--net-start); }
+.up-stat::after { background: var(--cpu-start); }
+.total-payload-stat::after { background: var(--ram-start); }
+
+.stat-lbl {
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.stat-val {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-top: 6px;
+    font-family: 'Outfit', sans-serif;
+    letter-spacing: -0.02em;
+}
+
+.stat-indicator {
+    font-size: 0.72rem;
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 500;
+}
+
+.down-color { color: var(--net-start); }
+.up-color { color: var(--cpu-start); }
+.payload-color { color: var(--ram-start); }
+
+/* Charts Layout */
+.service-charts-layout {
+    display: flex;
+    gap: 20px;
+}
+
+.service-chart-box {
+    flex: 1;
+    min-width: 0; /* prevent flex item overflow */
+    background: rgba(15, 23, 42, 0.1);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 15px;
+}
+
+.service-chart-title {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 8px;
+}
+
+/* Responsive styles */
+@media (max-width: 992px) {
+    .service-charts-layout {
+        flex-direction: column;
+    }
+    .service-stats-grid {
+        grid-template-columns: 1fr;
+    }
+}

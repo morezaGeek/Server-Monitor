@@ -529,6 +529,130 @@
                     <canvas id="connChart"></canvas>
                 </div>
             </div>
+
+            <!-- Service Traffic Analyzer Card -->
+            <div class="chart-card chart-card-service full-width-card">
+                <div class="chart-header">
+                    <div class="service-header-title">
+                        <h3>⚡ Service Traffic Analyzer</h3>
+                        <p class="service-subtitle">Real-time throughput and historical volume by service</p>
+                    </div>
+                    <div class="chart-header-controls">
+                        <div class="smooth-control">
+                            <label for="serviceRangeSelect">Range:</label>
+                            <select id="serviceRangeSelect" class="iface-select">
+                                <option value="1h" selected>1 Hour</option>
+                                <option value="2h">2 Hours</option>
+                                <option value="6h">6 Hours</option>
+                                <option value="12h">12 Hours</option>
+                                <option value="1d">1 Day</option>
+                                <option value="2d">2 Days</option>
+                                <option value="1w">1 Week</option>
+                                <option value="1m">1 Month</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Horizontal Service Tabs Slider -->
+                <div class="service-tabs-container">
+                    <div class="service-tabs">
+                        <button class="service-tab active" data-service="google">
+                            <span class="service-tab-icon">🌐</span>
+                            <span class="service-tab-label">Google</span>
+                        </button>
+                        <button class="service-tab" data-service="apple">
+                            <span class="service-tab-icon">🍎</span>
+                            <span class="service-tab-label">Apple</span>
+                        </button>
+                        <button class="service-tab" data-service="meta">
+                            <span class="service-tab-icon">👥</span>
+                            <span class="service-tab-label">Meta</span>
+                        </button>
+                        <button class="service-tab" data-service="openai">
+                            <span class="service-tab-icon">🧠</span>
+                            <span class="service-tab-label">OpenAI</span>
+                        </button>
+                        <button class="service-tab" data-service="spotify">
+                            <span class="service-tab-icon">🎵</span>
+                            <span class="service-tab-label">Spotify</span>
+                        </button>
+                        <button class="service-tab" data-service="netflix">
+                            <span class="service-tab-icon">🎬</span>
+                            <span class="service-tab-label">Netflix</span>
+                        </button>
+                        <button class="service-tab" data-service="reddit">
+                            <span class="service-tab-icon">🤖</span>
+                            <span class="service-tab-label">Reddit</span>
+                        </button>
+                        <button class="service-tab" data-service="speedtest">
+                            <span class="service-tab-icon">⏱️</span>
+                            <span class="service-tab-label">Speedtest</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Google Sub-services Sub-tabs -->
+                <div class="sub-service-tabs-container" id="googleSubTabs">
+                    <div class="sub-service-tabs">
+                        <button class="sub-service-tab active" data-sub="google">
+                            <span class="sub-tab-icon">📊</span>
+                            <span class="sub-tab-label">Google Total</span>
+                        </button>
+                        <button class="sub-service-tab" data-sub="google_search">
+                            <span class="sub-tab-icon">🔍</span>
+                            <span class="sub-tab-label">Search</span>
+                        </button>
+                        <button class="sub-service-tab" data-sub="google_youtube">
+                            <span class="sub-tab-icon">📺</span>
+                            <span class="sub-tab-label">YouTube</span>
+                        </button>
+                        <button class="sub-service-tab" data-sub="google_play">
+                            <span class="sub-tab-icon">🛍️</span>
+                            <span class="sub-tab-label">Play Store</span>
+                        </button>
+                        <button class="sub-service-tab" data-sub="google_ai">
+                            <span class="sub-tab-icon">✨</span>
+                            <span class="sub-tab-label">Gemini AI</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Real-time Stats Grid -->
+                <div class="service-stats-grid">
+                    <div class="service-stat-card down-stat">
+                        <span class="stat-lbl">Download Speed</span>
+                        <div class="stat-val" id="serviceDownSpeed">0.00 Mbps</div>
+                        <span class="stat-indicator down-color">● Live</span>
+                    </div>
+                    <div class="service-stat-card up-stat">
+                        <span class="stat-lbl">Upload Speed</span>
+                        <div class="stat-val" id="serviceUpSpeed">0.00 Mbps</div>
+                        <span class="stat-indicator up-color">● Live</span>
+                    </div>
+                    <div class="service-stat-card total-payload-stat">
+                        <span class="stat-lbl">Accumulated Payload</span>
+                        <div class="stat-val" id="serviceTotalPayload">0.00 MB</div>
+                        <span class="stat-indicator payload-color">📊 Cumulative</span>
+                    </div>
+                </div>
+
+                <!-- Charts layout -->
+                <div class="service-charts-layout">
+                    <div class="service-chart-box">
+                        <div class="service-chart-title">Real-time Throughput (Mbps)</div>
+                        <div class="chart-wrapper">
+                            <canvas id="serviceThroughputChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="service-chart-box">
+                        <div class="service-chart-title">Payload Volume Over Time</div>
+                        <div class="chart-wrapper">
+                            <canvas id="servicePayloadChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </section>
 
         <!-- Top Processes Area -->
@@ -910,7 +1034,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script
         src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-    <script src="/static/app.js?v=54"></script>
+    <script src="/static/app.js?v=55"></script>
+    <script src="/static/service_analyzer.js?v=65"></script>
 </body>
 
 </html>

@@ -43,7 +43,7 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metrics.db")
 COLLECT_INTERVAL = 30  # seconds
 RETENTION_DAYS = 31
 PORT = 8080
-VERSION = "1.0.5"
+VERSION = "1.0.6"
 
 # ─── Public IP Cache ─────────────────────────────────────────────────────────
 
@@ -109,6 +109,20 @@ def init_db():
             conn.execute("SELECT extra_json FROM metrics LIMIT 1")
         except sqlite3.OperationalError:
             conn.execute("ALTER TABLE metrics ADD COLUMN extra_json TEXT DEFAULT '{}'")
+        # Service metrics table
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS service_metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp REAL NOT NULL,
+                service TEXT NOT NULL,
+                bytes_down REAL NOT NULL,
+                bytes_up REAL NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_service_metrics_ts
+            ON service_metrics(timestamp)
+        """)
 
 
 @contextmanager
@@ -226,6 +240,7 @@ class MetricsCollector:
         cutoff = now - (RETENTION_DAYS * 86400)
         with get_db() as conn:
             conn.execute("DELETE FROM metrics WHERE timestamp < ?", (cutoff,))
+            conn.execute("DELETE FROM service_metrics WHERE timestamp < ?", (cutoff,))
 
 
 # ─── Network Interface Detection ─────────────────────────────────────────────
@@ -422,7 +437,92 @@ class DiskSpeedTracker:
 
 # ─── FastAPI App ─────────────────────────────────────────────────────────────
 
+class ServiceTrafficCollector:
+    """Background collector that samples service metrics from iptables counters every 10 seconds."""
+
+    def __init__(self):
+        self.current_speeds = {}  # {service: {"down_mbps": float, "up_mbps": float}}
+        self._prev_counters = {}  # {service: (prev_down_bytes, prev_up_bytes)}
+        self._prev_time = time.time()
+        self._running = False
+        self._thread = None
+        self._lock = threading.Lock()
+
+    def start(self):
+        self._prev_counters = self._get_iptables_counters()
+        self._prev_time = time.time()
+        self._running = True
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def stop(self):
+        self._running = False
+
+    def _run(self):
+        while self._running:
+            try:
+                self._collect()
+            except Exception as e:
+                print(f"[ServiceCollector Error] {e}")
+            time.sleep(10)
+
+    def _get_iptables_counters(self):
+        import subprocess
+        import re
+        counters = {}
+        try:
+            res = subprocess.run(["iptables", "-L", "FORWARD", "-n", "-v", "-x"], capture_output=True, text=True)
+            if res.returncode == 0:
+                pattern = re.compile(r'^\s*(\d+)\s+(\d+)\s+.*service_([a-z0-9_]+)_(down|up)')
+                for line in res.stdout.splitlines():
+                    m = pattern.search(line)
+                    if m:
+                        val = int(m.group(2))
+                        service = m.group(3)
+                        direction = m.group(4)
+                        if service not in counters:
+                            counters[service] = [0, 0]
+                        if direction == "down":
+                            counters[service][0] = val
+                        elif direction == "up":
+                            counters[service][1] = val
+        except Exception as e:
+            print(f"[iptables parsing error] {e}")
+        return counters
+
+    def _collect(self):
+        now = time.time()
+        elapsed = now - self._prev_time
+        if elapsed <= 0:
+            elapsed = 1.0
+
+        current = self._get_iptables_counters()
+        new_speeds = {}
+        with self._lock:
+            with get_db() as conn:
+                for service, (cur_down, cur_up) in current.items():
+                    prev_down, prev_up = self._prev_counters.get(service, (0, 0))
+                    
+                    # Calculate deltas with counter-reset safety
+                    delta_down = cur_down - prev_down if cur_down >= prev_down else cur_down
+                    delta_up = cur_up - prev_up if cur_up >= prev_up else cur_up
+                    
+                    conn.execute("""
+                        INSERT INTO service_metrics (timestamp, service, bytes_down, bytes_up)
+                        VALUES (?, ?, ?, ?)
+                    """, (now, service, delta_down, delta_up))
+                    
+                    # Speed in Mbps
+                    down_mbps = round((delta_down * 8) / (elapsed * 1024 * 1024), 3)
+                    up_mbps = round((delta_up * 8) / (elapsed * 1024 * 1024), 3)
+                    new_speeds[service] = {"down_mbps": down_mbps, "up_mbps": up_mbps}
+            
+            self.current_speeds = new_speeds
+            self._prev_counters = current
+            self._prev_time = now
+
 collector = MetricsCollector()
+service_collector = ServiceTrafficCollector()
 net_tracker = NetworkSpeedTracker()
 disk_tracker = DiskSpeedTracker()
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
@@ -465,8 +565,10 @@ def get_cpu_model_name():
 async def lifespan(application):
     init_db()
     collector.start()
+    service_collector.start()
     yield
     collector.stop()
+    service_collector.stop()
 
 
 app = FastAPI(title="Server Monitor", lifespan=lifespan)
@@ -990,6 +1092,70 @@ RANGE_MAP = {
     "1w":  (604800,      900),        # 15 min average
     "1m":  (2592000,     3600),       # 1 hour average
 }
+
+
+@app.get("/api/services/current")
+async def get_services_current(username: str = Depends(get_current_username)):
+    """Return real-time speeds (Mbps) for all tracked services."""
+    with service_collector._lock:
+        return service_collector.current_speeds
+
+
+@app.get("/api/services/metrics")
+async def get_services_metrics(
+    range: str = Query("1h"), 
+    seconds: int = Query(None, ge=60, le=7776000), 
+    username: str = Depends(get_current_username)
+):
+    """Return historical payload volume (bytes) for all tracked services over range."""
+    if seconds is not None:
+        total_seconds = seconds
+        # Auto-calculate aggregation bucket based on duration
+        if seconds <= 7200:        bucket = None       # raw
+        elif seconds <= 21600:     bucket = 30          # 30s avg
+        elif seconds <= 43200:     bucket = 60          # 1m avg
+        elif seconds <= 86400:     bucket = 120         # 2m avg
+        elif seconds <= 172800:    bucket = 300         # 5m avg
+        elif seconds <= 604800:    bucket = 900         # 15m avg
+        else:                      bucket = 3600        # 1h avg
+    else:
+        total_seconds, bucket = RANGE_MAP.get(range, (3600, None))
+
+    cutoff = time.time() - total_seconds
+
+    with get_db() as conn:
+        if bucket is None:
+            # Return raw data
+            rows = conn.execute("""
+                SELECT timestamp, service, bytes_down, bytes_up
+                FROM service_metrics
+                WHERE timestamp >= ?
+                ORDER BY timestamp ASC
+            """, (cutoff,)).fetchall()
+        else:
+            # Return aggregated data summed up by bucket
+            rows = conn.execute(f"""
+                SELECT
+                    CAST(timestamp / ? AS INTEGER) * ? AS bucket_ts,
+                    service,
+                    SUM(bytes_down) AS bytes_down,
+                    SUM(bytes_up) AS bytes_up
+                FROM service_metrics
+                WHERE timestamp >= ?
+                GROUP BY bucket_ts, service
+                ORDER BY bucket_ts ASC
+            """, (bucket, bucket, cutoff)).fetchall()
+
+    data = []
+    for row in rows:
+        ts = row["bucket_ts"] if "bucket_ts" in row.keys() else row["timestamp"]
+        data.append({
+            "t": ts,
+            "service": row["service"],
+            "down": row["bytes_down"],
+            "up": row["bytes_up"]
+        })
+    return data
 
 
 @app.get("/api/metrics")
