@@ -112,11 +112,16 @@
                         x: {
                             type: "time",
                             time: {
-                                unit: "second",
-                                displayFormats: { second: "HH:mm:ss" }
+                                displayFormats: {
+                                    second: "HH:mm:ss",
+                                    minute: "HH:mm",
+                                    hour: "HH:mm",
+                                    day: "MMM d",
+                                    month: "MMM yyyy"
+                                }
                             },
                             grid: { display: false },
-                            ticks: { color: colors.muted, maxRotation: 0, autoSkip: true }
+                            ticks: { color: colors.muted, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 }
                         },
                         y: {
                             grid: { color: colors.grid },
@@ -178,8 +183,17 @@
                     scales: {
                         x: {
                             type: "time",
+                            time: {
+                                displayFormats: {
+                                    second: "HH:mm:ss",
+                                    minute: "HH:mm",
+                                    hour: "HH:mm",
+                                    day: "MMM d",
+                                    month: "MMM yyyy"
+                                }
+                            },
                             grid: { display: false },
-                            ticks: { color: colors.muted },
+                            ticks: { color: colors.muted, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 },
                             stacked: true
                         },
                         y: {

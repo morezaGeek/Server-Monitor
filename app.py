@@ -43,7 +43,7 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metrics.db")
 COLLECT_INTERVAL = 30  # seconds
 RETENTION_DAYS = 31
 PORT = 8080
-VERSION = "1.0.9"
+VERSION = "1.0.10"
 
 # ─── Public IP Cache ─────────────────────────────────────────────────────────
 
@@ -493,6 +493,13 @@ class ServiceTrafficCollector:
                 "whatsapp.net", "messenger.com", "ig.me", "m.me", "whatsapp.org",
                 "threads.net", "oculus.com", "fb.co"
             ],
+            "google_other": [
+                "google.com", "gstatic.com", "googleapis.com", "googleusercontent.com", "gvt1.com", 
+                "google-analytics.com", "googletagmanager.com", "googletagservices.com", 
+                "doubleclick.net", "gvt2.com", "gvt3.com", "googlezip.net", 
+                "urgency.google.com", "widevine.com", "chrome.com", "gmail.com",
+                "googleblog.com", "googlesource.com", "googlehosted.com"
+            ],
             "google_search": [
                 "www.google.com", "google.co", "google.co.uk", "google.ca", "google.de", "google.fr",
                 "google.it", "google.es", "google.nl", "google.com.br", "google.co.in", "google.co.jp",
@@ -510,13 +517,6 @@ class ServiceTrafficCollector:
                 "gemini.google.com", "generativelanguage.googleapis.com", 
                 "vertexai.googleapis.com", "aistudio.google.com", "makersuite.google.com",
                 "deepmind.com", "deepmind.google"
-            ],
-            "google_other": [
-                "google.com", "gstatic.com", "googleapis.com", "googleusercontent.com", "gvt1.com", 
-                "google-analytics.com", "googletagmanager.com", "googletagservices.com", 
-                "doubleclick.net", "gvt2.com", "gvt3.com", "googlezip.net", 
-                "urgency.google.com", "widevine.com", "chrome.com", "gmail.com",
-                "googleblog.com", "googlesource.com", "googlehosted.com"
             ],
             "openai": [
                 "openai.com", "chatgpt.com", "chat.openai.com", "api.openai.com", 
