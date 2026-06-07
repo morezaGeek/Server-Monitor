@@ -549,7 +549,17 @@
                                 <option value="2d">2 Days</option>
                                 <option value="1w">1 Week</option>
                                 <option value="1m">1 Month</option>
+                                <option value="custom">Custom...</option>
                             </select>
+                        </div>
+                        <div id="serviceCustomRangeContainer" class="smooth-control" style="display:none; gap:4px; align-items:center;">
+                            <input type="number" id="serviceCustomRangeInput" class="iface-select" value="30" min="1" style="width:60px; text-align:center;">
+                            <select id="serviceCustomRangeUnit" class="iface-select">
+                                <option value="minutes" selected>Minutes</option>
+                                <option value="hours">Hours</option>
+                                <option value="days">Days</option>
+                            </select>
+                            <button id="serviceCustomRangeApply" class="iface-select" style="cursor:pointer; padding:4px 10px; font-weight:600;">✓</button>
                         </div>
                     </div>
                 </div>
@@ -577,10 +587,7 @@
                             <span class="service-tab-icon">🎵</span>
                             <span class="service-tab-label">Spotify</span>
                         </button>
-                        <button class="service-tab" data-service="netflix">
-                            <span class="service-tab-icon">🎬</span>
-                            <span class="service-tab-label">Netflix</span>
-                        </button>
+
                         <button class="service-tab" data-service="telegram">
                             <span class="service-tab-icon">✈️</span>
                             <span class="service-tab-label">Telegram</span>
@@ -1035,7 +1042,7 @@
     <script
         src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <script src="/static/app.js?v=58"></script>
-    <script src="/static/service_analyzer.js?v=70"></script>
+    <script src="/static/service_analyzer.js?v=71"></script>
 </body>
 
 </html>

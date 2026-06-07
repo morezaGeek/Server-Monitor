@@ -43,7 +43,7 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metrics.db")
 COLLECT_INTERVAL = 30  # seconds
 RETENTION_DAYS = 31
 PORT = 8080
-VERSION = "1.0.12"
+VERSION = "1.0.13"
 
 # ─── Public IP Cache ─────────────────────────────────────────────────────────
 
@@ -531,11 +531,12 @@ def parse_geosite_data(file_path):
 # ─── FastAPI App ─────────────────────────────────────────────────────────────
 
 class ServiceTrafficCollector:
-    """Background collector that samples service metrics from iptables counters every 10 seconds."""
+    """Background collector that samples service metrics from iptables counters every 1 second and writes to DB every 10 seconds."""
 
     def __init__(self):
         self.current_speeds = {}  # {service: {"down_mbps": float, "up_mbps": float}}
         self._prev_counters = {}  # {service: (prev_down_bytes, prev_up_bytes)}
+        self._db_prev_counters = {}  # {service: (prev_down_bytes, prev_up_bytes)}
         self._prev_time = time.time()
         self._running = False
         self._thread = None
@@ -547,6 +548,7 @@ class ServiceTrafficCollector:
         except Exception as e:
             print(f"[ServiceCollector Warning] Failed to initialize iptables/ipset: {e}")
         self._prev_counters = self._get_iptables_counters()
+        self._db_prev_counters = self._prev_counters.copy()
         self._prev_time = time.time()
         self._running = True
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -556,12 +558,14 @@ class ServiceTrafficCollector:
         self._running = False
 
     def _run(self):
+        db_insert_counter = 0
         while self._running:
             try:
-                self._collect()
+                self._collect(insert_to_db=(db_insert_counter % 10 == 0))
+                db_insert_counter += 1
             except Exception as e:
                 print(f"[ServiceCollector Error] {e}")
-            time.sleep(10)
+            time.sleep(1)
 
     def _initialize_network_rules(self):
         import subprocess
@@ -620,11 +624,7 @@ class ServiceTrafficCollector:
                 "spotifycdn.net", "spotify.design", "spotifyjobs.com", "spotify.link",
                 "pscdn.co", "byspotify.com", "tospotify.com"
             ],
-            "netflix": [
-                "netflix.com", "nflxext.com", "nflxvideo.net", "nflxso.net", 
-                "nflximg.net", "netflixdnstest8.com", "netflix3.com", "nflximg.com",
-                "netflix.ca", "netflix.net", "nflxsearch.net"
-            ],
+
             "telegram": [
                 "telegram.org", "telegram.me", "t.me", "telegram.dog", "telesco.pe", 
                 "comments.app", "stel.com", "tx.me", "tdesktop.com", "tg.dev", 
@@ -689,10 +689,9 @@ class ServiceTrafficCollector:
         google_sub_sets = set(google_youtube + google_play + google_ai + google_search)
         google_other = [d for d in google_other_raw if d not in google_sub_sets]
 
-        # OpenAI, Spotify, Netflix, Telegram, Speedtest
+        # OpenAI, Spotify, Telegram, Speedtest
         openai = get_geosite_domains(["OPENAI"], fallback_domains["openai"])
         spotify = get_geosite_domains(["SPOTIFY"], fallback_domains["spotify"])
-        netflix = get_geosite_domains(["NETFLIX"], fallback_domains["netflix"])
         telegram = get_geosite_domains(["TELEGRAM"], fallback_domains["telegram"])
         speedtest = get_geosite_domains(["SPEEDTEST", "CATEGORY-SPEEDTEST", "OOKLA-SPEEDTEST"], fallback_domains["speedtest"])
 
@@ -706,7 +705,6 @@ class ServiceTrafficCollector:
             "google_ai": google_ai,
             "openai": openai,
             "spotify": spotify,
-            "netflix": netflix,
             "telegram": telegram,
             "speedtest": speedtest
         }
@@ -842,7 +840,7 @@ class ServiceTrafficCollector:
             print(f"[iptables parsing error] {e}")
         return counters
 
-    def _collect(self):
+    def _collect(self, insert_to_db=False):
         now = time.time()
         elapsed = now - self._prev_time
         if elapsed <= 0:
@@ -851,23 +849,32 @@ class ServiceTrafficCollector:
         current = self._get_iptables_counters()
         new_speeds = {}
         with self._lock:
-            with get_db() as conn:
-                for service, (cur_down, cur_up) in current.items():
-                    prev_down, prev_up = self._prev_counters.get(service, (0, 0))
-                    
-                    # Calculate deltas with counter-reset safety
-                    delta_down = cur_down - prev_down if cur_down >= prev_down else cur_down
-                    delta_up = cur_up - prev_up if cur_up >= prev_up else cur_up
-                    
-                    conn.execute("""
-                        INSERT INTO service_metrics (timestamp, service, bytes_down, bytes_up)
-                        VALUES (?, ?, ?, ?)
-                    """, (now, service, delta_down, delta_up))
-                    
-                    # Speed in Mbps
-                    down_mbps = round((delta_down * 8) / (elapsed * 1024 * 1024), 3)
-                    up_mbps = round((delta_up * 8) / (elapsed * 1024 * 1024), 3)
-                    new_speeds[service] = {"down_mbps": down_mbps, "up_mbps": up_mbps}
+            # 1. Update live speeds based on 1-second interval
+            for service, (cur_down, cur_up) in current.items():
+                prev_down, prev_up = self._prev_counters.get(service, (0, 0))
+                delta_down = cur_down - prev_down if cur_down >= prev_down else cur_down
+                delta_up = cur_up - prev_up if cur_up >= prev_up else cur_up
+                
+                # Speed in Mbps
+                down_mbps = round((delta_down * 8) / (elapsed * 1024 * 1024), 3)
+                up_mbps = round((delta_up * 8) / (elapsed * 1024 * 1024), 3)
+                new_speeds[service] = {"down_mbps": down_mbps, "up_mbps": up_mbps}
+            
+            # 2. Insert accumulated delta into database if it's time (every 10 seconds)
+            if insert_to_db:
+                with get_db() as conn:
+                    for service, (cur_down, cur_up) in current.items():
+                        db_prev_down, db_prev_up = self._db_prev_counters.get(service, (0, 0))
+                        db_delta_down = cur_down - db_prev_down if cur_down >= db_prev_down else cur_down
+                        db_delta_up = cur_up - db_prev_up if cur_up >= db_prev_up else cur_up
+                        
+                        conn.execute("""
+                            INSERT INTO service_metrics (timestamp, service, bytes_down, bytes_up)
+                            VALUES (?, ?, ?, ?)
+                        """, (now, service, db_delta_down, db_delta_up))
+                
+                # Update db_prev_counters
+                self._db_prev_counters = current.copy()
             
             self.current_speeds = new_speeds
             self._prev_counters = current
