@@ -10,6 +10,51 @@
     const CHART_INTERVAL = 30_000;  // charts every 30 seconds
     const CIRCUMFERENCE = 2 * Math.PI * 52; // gauge circle circumference
 
+    // ─── Legend Hover-Bold Helper ─────────────────────────────────────────────
+    // Tracks which dataset index is hovered per chart (WeakMap, GC-friendly).
+    const _legendHover = new WeakMap();
+
+    /**
+     * Returns a Chart.js legend config object identical to `base` but with
+     * onHover / onLeave callbacks that bold the hovered item's label text.
+     * Merges cleanly with any labels sub-config you pass in.
+     */
+    function makeLegend(base) {
+        const bl = (base.labels || {});
+        return {
+            ...base,
+            onHover(e, item, legend) {
+                if (_legendHover.get(legend.chart) !== item.datasetIndex) {
+                    _legendHover.set(legend.chart, item.datasetIndex);
+                    legend.chart.update('none');
+                }
+            },
+            onLeave(e, item, legend) {
+                if (_legendHover.has(legend.chart)) {
+                    _legendHover.delete(legend.chart);
+                    legend.chart.update('none');
+                }
+            },
+            labels: {
+                ...bl,
+                generateLabels(chart) {
+                    const hIdx = _legendHover.has(chart) ? _legendHover.get(chart) : -1;
+                    const orig = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+                    return orig.map(lbl => {
+                        if (hIdx >= 0 && lbl.datasetIndex === hIdx) {
+                            lbl.font = {
+                                size: bl.font?.size || 11,
+                                family: bl.font?.family || "'Inter', sans-serif",
+                                weight: 'bold'
+                            };
+                        }
+                        return lbl;
+                    });
+                }
+            }
+        };
+    }
+
     const RANGE_MS = {
         "1h": 3600 * 1000,
         "2h": 7200 * 1000,
@@ -107,7 +152,7 @@
             intersect: false
         },
         plugins: {
-            legend: {
+            legend: makeLegend({
                 display: forceLegend || !isPercent,
                 position: "top",
                 labels: {
@@ -116,7 +161,7 @@
                     boxWidth: 12,
                     padding: 12
                 }
-            },
+            }),
             tooltip: {
                 backgroundColor: "rgba(255, 255, 255, 0.98)",
                 titleColor: "#1e293b",
@@ -300,12 +345,12 @@
                     intersect: false,
                 },
                 plugins: {
-                    legend: {
+                    legend: makeLegend({
                         display: true,
                         position: 'top',
                         align: 'end',
                         labels: { boxWidth: 12, usePointStyle: true, font: { size: 10 } }
-                    },
+                    }),
                     tooltip: {
                         callbacks: {
                             label: function (ctx) {
@@ -381,12 +426,12 @@
                     intersect: false,
                 },
                 plugins: {
-                    legend: {
+                    legend: makeLegend({
                         display: true,
                         position: 'top',
                         align: 'end',
                         labels: { boxWidth: 12, usePointStyle: true, font: { size: 10 } }
-                    },
+                    }),
                     tooltip: {
                         callbacks: {
                             label: function (ctx) {
@@ -494,7 +539,7 @@
             maintainAspectRatio: false,
             interaction: { mode: "index", intersect: false },
             plugins: {
-                legend: {
+                legend: makeLegend({
                     display: true,
                     position: "top",
                     labels: {
@@ -503,7 +548,7 @@
                         boxWidth: 12,
                         padding: 12
                     }
-                },
+                }),
                 tooltip: {
                     backgroundColor: "rgba(255, 255, 255, 0.98)",
                     titleColor: "#1e293b",
@@ -694,6 +739,18 @@
 
         // Uptime
         document.getElementById("uptimeText").textContent = formatUptime(data.system.uptime_seconds);
+
+        // Public IPs (only update when value changes to avoid flicker)
+        if (data.public_ips) {
+            const ipv4El = document.getElementById("publicIpv4");
+            const ipv6El = document.getElementById("publicIpv6");
+            if (ipv4El && data.public_ips.ipv4 && ipv4El.textContent !== data.public_ips.ipv4) {
+                ipv4El.textContent = data.public_ips.ipv4;
+            }
+            if (ipv6El && data.public_ips.ipv6 && ipv6El.textContent !== data.public_ips.ipv6) {
+                ipv6El.textContent = data.public_ips.ipv6;
+            }
+        }
     }
 
     function setGauge(elementId, percent) {
@@ -902,12 +959,8 @@
         const diskAvg = (data.reduce((s, d) => s + d.disk, 0) / data.length).toFixed(1);
         document.getElementById("diskAvgBadge").textContent = `Avg: ${diskAvg}%`;
 
-        // Network — convert bytes/sec to Mbps, clamped to user max
-        const maxMbps = getNetMax();
-        const toMbps = (bytesSec) => {
-            const mbps = (bytesSec * 8) / 1_000_000;
-            return Math.min(mbps, maxMbps);  // clamp to max
-        };
+        // Network — convert bytes/sec to Mbps (no clamping; chart y.max handles scale)
+        const toMbps = (bytesSec) => (bytesSec * 8) / 1_000_000;
         netChart.options.scales.x.min = minMs;
         netChart.options.scales.x.max = maxMs;
         const netSentData = data.map((d, i) => ({ x: timestamps[i], y: toMbps(d.net_sent) }));

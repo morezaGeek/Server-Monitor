@@ -19,6 +19,7 @@ from contextlib import contextmanager, asynccontextmanager
 
 import platform
 import re
+import urllib.request as _urllib_req
 
 import psutil
 import uvicorn
@@ -42,7 +43,33 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metrics.db")
 COLLECT_INTERVAL = 30  # seconds
 RETENTION_DAYS = 31
 PORT = 8080
-VERSION = "1.0.0"
+VERSION = "1.0.1"
+
+# ─── Public IP Cache ─────────────────────────────────────────────────────────
+
+_ip_cache: dict = {"ipv4": "—", "ipv6": "—", "at": 0.0}
+_IP_TTL = 300  # refresh every 5 minutes
+
+def _fetch_ip(url: str, timeout: int = 4) -> str:
+    """Fetch a single URL and return the text body or empty string."""
+    try:
+        with _urllib_req.urlopen(url, timeout=timeout) as r:
+            return r.read().decode().strip()
+    except Exception:
+        return ""
+
+def get_public_ips() -> tuple[str, str]:
+    """Return (public_ipv4, public_ipv6). Results are cached for _IP_TTL seconds."""
+    global _ip_cache
+    now = time.time()
+    if now - _ip_cache["at"] < _IP_TTL:
+        return _ip_cache["ipv4"], _ip_cache["ipv6"]
+
+    ipv4 = _fetch_ip("https://api4.ipify.org") or "—"
+    ipv6 = _fetch_ip("https://api6.ipify.org") or "—"
+
+    _ip_cache = {"ipv4": ipv4, "ipv6": ipv6, "at": now}
+    return ipv4, ipv6
 
 # ─── Database ────────────────────────────────────────────────────────────────
 
@@ -946,7 +973,8 @@ async def current_metrics(username: str = Depends(get_current_username)):
             "os": os_info,
             "version": VERSION
         },
-        "connections": _get_connection_counts()
+        "connections": _get_connection_counts(),
+        "public_ips": dict(zip(("ipv4", "ipv6"), get_public_ips()))
     }
 
 

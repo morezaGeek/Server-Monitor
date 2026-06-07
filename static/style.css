@@ -846,6 +846,10 @@ body {
     font-size: 0.78rem;
     color: var(--text-muted);
     margin-top: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-height: 1.1em;   /* prevents height jump from empty → text */
 }
 
 .header-badges {
@@ -1174,6 +1178,36 @@ body {
 .stat-detail span:last-child {
     color: var(--text-primary);
     font-weight: 400;
+}
+
+/* IP address badge chips */
+.ip-badge {
+    font-family: 'Roboto Mono', 'Courier New', monospace;
+    font-size: 0.78rem;
+    background: rgba(99, 102, 241, 0.1);
+    color: #6366f1;
+    border: 1px solid rgba(99, 102, 241, 0.22);
+    border-radius: 6px;
+    padding: 1px 7px;
+    letter-spacing: 0.01em;
+    user-select: all;
+    white-space: nowrap;
+}
+
+.ip-badge-v6 {
+    background: rgba(6, 182, 212, 0.1);
+    color: #06b6d4;
+    border-color: rgba(6, 182, 212, 0.22);
+    font-size: 0.72rem;
+    word-break: break-all;
+    white-space: normal;
+    display: block;
+    text-align: right;
+    max-width: 160px;
+}
+
+.stat-detail-ip {
+    align-items: flex-start;
 }
 
 /* ─── Range Selector ─────────────────────────────────────────────────────── */

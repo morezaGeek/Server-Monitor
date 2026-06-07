@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=57">
+    <link rel="stylesheet" href="/static/style.css?v=58">
 </head>
 
 <body>
@@ -302,6 +302,14 @@
                         <span id="livePayload" style="font-size:0.82rem; white-space:nowrap;">— / —</span>
                     </div>
                     <div class="stat-detail"><span>TCP / UDP</span><span id="liveTcpUdp">— / —</span></div>
+                    <div class="stat-detail stat-detail-ip">
+                        <span>IPv4</span>
+                        <span id="publicIpv4" class="ip-badge">—</span>
+                    </div>
+                    <div class="stat-detail stat-detail-ip">
+                        <span>IPv6</span>
+                        <span id="publicIpv6" class="ip-badge ip-badge-v6">—</span>
+                    </div>
                 </div>
             </div>
         </section>
@@ -902,7 +910,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script
         src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-    <script src="/static/app.js?v=49"></script>
+    <script src="/static/app.js?v=50"></script>
 </body>
 
 </html>
