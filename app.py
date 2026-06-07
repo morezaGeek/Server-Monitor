@@ -43,7 +43,7 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metrics.db")
 COLLECT_INTERVAL = 30  # seconds
 RETENTION_DAYS = 31
 PORT = 8080
-VERSION = "1.0.6"
+VERSION = "1.0.7"
 
 # ─── Public IP Cache ─────────────────────────────────────────────────────────
 
@@ -449,6 +449,10 @@ class ServiceTrafficCollector:
         self._lock = threading.Lock()
 
     def start(self):
+        try:
+            self._initialize_network_rules()
+        except Exception as e:
+            print(f"[ServiceCollector Warning] Failed to initialize iptables/ipset: {e}")
         self._prev_counters = self._get_iptables_counters()
         self._prev_time = time.time()
         self._running = True
@@ -466,12 +470,68 @@ class ServiceTrafficCollector:
                 print(f"[ServiceCollector Error] {e}")
             time.sleep(10)
 
+    def _initialize_network_rules(self):
+        import subprocess
+        # 1. Ensure ipset package is installed
+        res = subprocess.run(["which", "ipset"], capture_output=True)
+        if res.returncode != 0:
+            subprocess.run(["apt-get", "update"])
+            subprocess.run(["apt-get", "install", "-y", "ipset"])
+
+        services = [
+            "apple", "meta", "google", "google_search", "google_youtube", 
+            "google_play", "google_ai", "openai", "spotify", "netflix", 
+            "reddit", "speedtest"
+        ]
+
+        # 2. Create ipsets if they don't exist
+        for s in services:
+            subprocess.run([
+                "ipset", "create", f"ipset_{s}", "hash:ip", 
+                "family", "inet", "hashsize", "1024", "maxelem", "65536"
+            ], stderr=subprocess.DEVNULL)
+
+        # 3. Clean up old rules with comment "service_" from filter and nat tables
+        for table in ["filter", "nat"]:
+            chain_list = ["INPUT", "FORWARD", "OUTPUT"] if table == "filter" else ["PREROUTING"]
+            for chain in chain_list:
+                while True:
+                    res = subprocess.run(["iptables", "-t", table, "-L", chain, "-n", "--line-numbers"], capture_output=True, text=True)
+                    if res.returncode != 0:
+                        break
+                    found_line = None
+                    for line in res.stdout.splitlines():
+                        if "service_" in line or "5353" in line:
+                            found_line = line.split()[0]
+                            break
+                    if found_line:
+                        subprocess.run(["iptables", "-t", table, "-D", chain, found_line])
+                    else:
+                        break
+
+        # 4. Insert transparent DNS redirection rules in NAT table
+        subprocess.run(["iptables", "-t", "nat", "-I", "PREROUTING", "-i", "vpns+", "-p", "udp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"])
+        subprocess.run(["iptables", "-t", "nat", "-I", "PREROUTING", "-i", "vpns+", "-p", "tcp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"])
+        subprocess.run(["iptables", "-t", "nat", "-I", "PREROUTING", "-i", "tap_vpn", "-p", "udp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"])
+        subprocess.run(["iptables", "-t", "nat", "-I", "PREROUTING", "-i", "tap_vpn", "-p", "tcp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"])
+
+        # 5. Insert filter rules (FORWARD, INPUT, OUTPUT)
+        for s in services:
+            ipset_name = f"ipset_{s}"
+            # FORWARD (routed VPN traffic)
+            subprocess.run(["iptables", "-I", "FORWARD", "-m", "set", "--match-set", ipset_name, "src", "-m", "comment", "--comment", f"service_{s}_down", "-j", "ACCEPT"])
+            subprocess.run(["iptables", "-I", "FORWARD", "-m", "set", "--match-set", ipset_name, "dst", "-m", "comment", "--comment", f"service_{s}_up", "-j", "ACCEPT"])
+            # INPUT (incoming proxy traffic - Download)
+            subprocess.run(["iptables", "-I", "INPUT", "-m", "set", "--match-set", ipset_name, "src", "-m", "comment", "--comment", f"service_{s}_down", "-j", "ACCEPT"])
+            # OUTPUT (outgoing proxy traffic - Upload)
+            subprocess.run(["iptables", "-I", "OUTPUT", "-m", "set", "--match-set", ipset_name, "dst", "-m", "comment", "--comment", f"service_{s}_up", "-j", "ACCEPT"])
+
     def _get_iptables_counters(self):
         import subprocess
         import re
         counters = {}
         try:
-            res = subprocess.run(["iptables", "-L", "FORWARD", "-n", "-v", "-x"], capture_output=True, text=True)
+            res = subprocess.run(["iptables", "-L", "-n", "-v", "-x"], capture_output=True, text=True)
             if res.returncode == 0:
                 pattern = re.compile(r'^\s*(\d+)\s+(\d+)\s+.*service_([a-z0-9_]+)_(down|up)')
                 for line in res.stdout.splitlines():
@@ -483,9 +543,9 @@ class ServiceTrafficCollector:
                         if service not in counters:
                             counters[service] = [0, 0]
                         if direction == "down":
-                            counters[service][0] = val
+                            counters[service][0] += val
                         elif direction == "up":
-                            counters[service][1] = val
+                            counters[service][1] += val
         except Exception as e:
             print(f"[iptables parsing error] {e}")
         return counters
