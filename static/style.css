@@ -2801,6 +2801,30 @@ body {
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.service-tab-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+}
+
+.service-tab-icon svg {
+    flex-shrink: 0;
+}
+
+.sub-tab-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+}
+
+.sub-tab-icon svg {
+    flex-shrink: 0;
+}
+
 .service-tab:hover {
     background: var(--bg-card-hover);
     border-color: var(--border-glow);

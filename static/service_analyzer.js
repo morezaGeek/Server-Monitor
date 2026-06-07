@@ -28,6 +28,9 @@
             up: bodyStyle.getPropertyValue("--cpu-start").trim() || "#818cf8",
             downGlow: "rgba(16, 185, 129, 0.15)",
             upGlow: "rgba(129, 140, 248, 0.15)",
+            // Brighter colors for bar chart in dark mode
+            barDown: isDark ? "#34d399" : (bodyStyle.getPropertyValue("--net-start").trim() || "#10b981"),
+            barUp: isDark ? "#a5b4fc" : (bodyStyle.getPropertyValue("--cpu-start").trim() || "#818cf8"),
         };
     }
 
@@ -159,8 +162,8 @@
                 type: "bar",
                 data: {
                     datasets: [
-                        { label: "Download", backgroundColor: colors.down, borderRadius: 4, data: [] },
-                        { label: "Upload", backgroundColor: colors.up, borderRadius: 4, data: [] }
+                        { label: "Download", backgroundColor: colors.barDown, borderRadius: 0, barPercentage: 1.0, categoryPercentage: 1.0, data: [] },
+                        { label: "Upload", backgroundColor: colors.barUp, borderRadius: 0, barPercentage: 1.0, categoryPercentage: 1.0, data: [] }
                     ]
                 },
                 options: {
@@ -222,8 +225,8 @@
         if (payloadChart) {
             const serviceHist = historicalData.filter(d => d.service === target);
 
-            payloadChart.data.datasets[0].backgroundColor = colors.down;
-            payloadChart.data.datasets[1].backgroundColor = colors.up;
+            payloadChart.data.datasets[0].backgroundColor = colors.barDown;
+            payloadChart.data.datasets[1].backgroundColor = colors.barUp;
 
             payloadChart.data.datasets[0].data = serviceHist.map(d => ({ x: new Date(d.t * 1000), y: d.down / (1024 * 1024) }));
             payloadChart.data.datasets[1].data = serviceHist.map(d => ({ x: new Date(d.t * 1000), y: d.up / (1024 * 1024) }));
@@ -421,8 +424,8 @@
                 payloadChart.options.scales.y.ticks.color = colors.muted;
                 payloadChart.options.scales.y.grid.color = colors.grid;
                 payloadChart.options.plugins.legend.labels.color = colors.text;
-                payloadChart.data.datasets[0].backgroundColor = colors.down;
-                payloadChart.data.datasets[1].backgroundColor = colors.up;
+                payloadChart.data.datasets[0].backgroundColor = colors.barDown;
+                payloadChart.data.datasets[1].backgroundColor = colors.barUp;
 
                 updateChartsForTarget();
             }

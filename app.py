@@ -43,7 +43,7 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metrics.db")
 COLLECT_INTERVAL = 30  # seconds
 RETENTION_DAYS = 31
 PORT = 8080
-VERSION = "1.0.13"
+VERSION = "1.0.14"
 
 # ─── Public IP Cache ─────────────────────────────────────────────────────────
 
@@ -597,18 +597,14 @@ class ServiceTrafficCollector:
                 "urgency.google.com", "widevine.com", "chrome.com", "gmail.com",
                 "googleblog.com", "googlesource.com", "googlehosted.com"
             ],
-            "google_search": [
-                "www.google.com", "google.co", "google.co.uk", "google.ca", "google.de", "google.fr",
-                "google.it", "google.es", "google.nl", "google.com.br", "google.co.in", "google.co.jp",
-                "google.com.mx", "google.ru", "google.com.tw", "google.co.za"
-            ],
             "google_youtube": [
                 "youtube.com", "ytimg.com", "googlevideo.com", "youtube-nocookie.com", 
                 "youtu.be", "youtubeeducation.com", "youtube-ui.l.google.com", "yt.be",
                 "youtube.co.uk", "youtube.co", "youtube.de", "youtube.fr"
             ],
             "google_play": [
-                "play.google.com", "ggpht.com", "android.clients.google.com", "play-lh.googleusercontent.com"
+                "play.google.com", "ggpht.com", "android.clients.google.com", "play-lh.googleusercontent.com",
+                "gvt1.com", "gvt2.com", "gvt3.com", "play.googleapis.com"
             ],
             "google_ai": [
                 "gemini.google.com", "generativelanguage.googleapis.com", 
@@ -631,19 +627,7 @@ class ServiceTrafficCollector:
                 "telegram.space", "telegram.com", "cdn-telegram.org", "telegram-cdn.org",
                 "fragment.com", "graph.org", "telegra.ph", "telega.one"
             ],
-            "speedtest": [
-                "speedtest.net", "ookla.com", "ooklaserver.net", "ookla-server.net", 
-                "speedtestcustom.com", "speed.cloudflare.com", "measurementlab.net", 
-                "speedof.me", "fast.com",
-                "speedtest.shatel.ir", "speedtest2.shatel.ir", "speedtest3.shatel.ir",
-                "speedtest.irancell.ir", "speedtest2.irancell.ir", "speedtest3.irancell.ir",
-                "speedtest.mci.ir", "speedtest2.mci.ir", "speedtest3.mci.ir",
-                "speedtest.rightel.ir", "speedtest.asiatech.ir", "speedtest.tci.ir",
-                "speedtest.parsonline.com", "speedtest.parsonline.ir", "speedtest.pishgaman.net",
-                "speedtest.mobinnet.ir", "speedtest.zitel.ir", "speedtest.fanap.ir",
-                "speed.telecom.ir", "speedtest.telecom.ir", "speed.irancell.ir",
-                "speed.mci.ir", "speed.rightel.ir"
-            ]
+
         }
 
         # Try to parse and extract domains from geosite.dat if available
@@ -682,31 +666,27 @@ class ServiceTrafficCollector:
         google_youtube = get_geosite_domains(["YOUTUBE"], fallback_domains["google_youtube"])
         google_play = get_geosite_domains(["GOOGLE-PLAY"], fallback_domains["google_play"])
         google_ai = get_geosite_domains(["GOOGLE-GEMINI", "GOOGLE-DEEPMIND"], fallback_domains["google_ai"])
-        google_search = get_geosite_domains(["GOOGLE-SCHOLAR"], fallback_domains["google_search"])
 
         # google_other (Google + Google-CN, excluding domains already captured in sub-services)
         google_other_raw = get_geosite_domains(["GOOGLE", "GOOGLE-CN"], fallback_domains["google_other"])
-        google_sub_sets = set(google_youtube + google_play + google_ai + google_search)
+        google_sub_sets = set(google_youtube + google_play + google_ai)
         google_other = [d for d in google_other_raw if d not in google_sub_sets]
 
         # OpenAI, Spotify, Telegram, Speedtest
         openai = get_geosite_domains(["OPENAI"], fallback_domains["openai"])
         spotify = get_geosite_domains(["SPOTIFY"], fallback_domains["spotify"])
         telegram = get_geosite_domains(["TELEGRAM"], fallback_domains["telegram"])
-        speedtest = get_geosite_domains(["SPEEDTEST", "CATEGORY-SPEEDTEST", "OOKLA-SPEEDTEST"], fallback_domains["speedtest"])
 
         services_domains = {
             "apple": apple_domains,
             "meta": meta_domains,
             "google_other": google_other,
-            "google_search": google_search,
             "google_youtube": google_youtube,
             "google_play": google_play,
             "google_ai": google_ai,
             "openai": openai,
             "spotify": spotify,
-            "telegram": telegram,
-            "speedtest": speedtest
+            "telegram": telegram
         }
 
         # 2. Clean up old rules with comment "service_" or matching "5353" from filter and nat tables first
@@ -749,6 +729,82 @@ class ServiceTrafficCollector:
         ]
         for cidr in telegram_cidrs:
             subprocess.run(["ipset", "add", "ipset_telegram", cidr], stderr=subprocess.DEVNULL)
+
+        # 4.5 Add Google IP ranges to ipset_google_other
+        try:
+            import urllib.request, json
+            req = urllib.request.Request('https://www.gstatic.com/ipranges/goog.json', headers={'User-Agent': 'Mozilla/5.0'})
+            res = urllib.request.urlopen(req, timeout=5).read()
+            data = json.loads(res)
+            google_cidrs = [p.get('ipv4Prefix') for p in data.get('prefixes', []) if 'ipv4Prefix' in p]
+            for cidr in google_cidrs:
+                subprocess.run(["ipset", "add", "ipset_google_other", cidr], stderr=subprocess.DEVNULL)
+            print(f"Added {len(google_cidrs)} Google IPv4 CIDRs to ipset.")
+        except Exception as e:
+            print(f"Failed to fetch Google IPs: {e}")
+
+        # 4.6 Parse Xray config and dynamically seed outbound proxy IPs to ipsets (for tunnel traffic accounting)
+        try:
+            xray_config_path = "/usr/local/x-ui/bin/config.json"
+            if os.path.exists(xray_config_path):
+                import json, socket
+                with open(xray_config_path, "r") as f:
+                    xray_config = json.load(f)
+                
+                outbound_ips = {}
+                for outbound in xray_config.get("outbounds", []):
+                    tag = outbound.get("tag")
+                    settings = outbound.get("settings", {})
+                    address = settings.get("address")
+                    if not address and "vnext" in settings:
+                        vnext = settings["vnext"]
+                        if vnext and isinstance(vnext, list):
+                            address = vnext[0].get("address")
+                    if not address and "servers" in settings:
+                        servers = settings["servers"]
+                        if servers and isinstance(servers, list):
+                            address = servers[0].get("address")
+                            
+                    if address:
+                        try:
+                            # Resolve address to all IPv4 IPs
+                            infos = socket.getaddrinfo(address, None, socket.AF_INET)
+                            ips = list(set([info[4][0] for info in infos]))
+                            outbound_ips[tag] = ips
+                            print(f"Resolved outbound '{tag}' ({address}) to {ips}")
+                        except Exception as res_err:
+                            print(f"Failed to resolve outbound address {address}: {res_err}")
+                
+                routing = xray_config.get("routing", {})
+                for rule in routing.get("rules", []):
+                    outbound_tag = rule.get("outboundTag")
+                    if outbound_tag in outbound_ips:
+                        ips_to_add = outbound_ips[outbound_tag]
+                        domains = rule.get("domain", [])
+                        ips = rule.get("ip", [])
+                        
+                        is_youtube = False
+                        is_google = False
+                        
+                        for d in domains:
+                            if "youtube" in d.lower() or "googlevideo" in d.lower():
+                                is_youtube = True
+                            elif "google" in d.lower() or "gstatic" in d.lower():
+                                is_google = True
+                                
+                        for i in ips:
+                            if "google" in i.lower():
+                                is_google = True
+                                
+                        for ip in ips_to_add:
+                            if is_youtube:
+                                subprocess.run(["ipset", "add", "ipset_google_youtube", ip], stderr=subprocess.DEVNULL)
+                                print(f"Added outbound IP {ip} to ipset_google_youtube")
+                            elif is_google:
+                                subprocess.run(["ipset", "add", "ipset_google_other", ip], stderr=subprocess.DEVNULL)
+                                print(f"Added outbound IP {ip} to ipset_google_other")
+        except Exception as xray_err:
+            print(f"Failed to process Xray config for outbound IPs: {xray_err}")
 
         # 4. Rewrite /etc/dnsmasq.conf with the updated domains and local DNS redirect
         try:
@@ -832,7 +888,7 @@ class ServiceTrafficCollector:
             # Dynamically compute Google total from sub-services
             if "google" not in counters:
                 counters["google"] = [0, 0]
-            for sub in ["google_search", "google_youtube", "google_play", "google_ai", "google_other"]:
+            for sub in ["google_youtube", "google_play", "google_ai", "google_other"]:
                 if sub in counters:
                     counters["google"][0] += counters[sub][0]
                     counters["google"][1] += counters[sub][1]
