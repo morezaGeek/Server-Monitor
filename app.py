@@ -43,7 +43,7 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metrics.db")
 COLLECT_INTERVAL = 30  # seconds
 RETENTION_DAYS = 31
 PORT = 8080
-VERSION = "1.0.7"
+VERSION = "1.0.8"
 
 # ─── Public IP Cache ─────────────────────────────────────────────────────────
 
@@ -491,9 +491,9 @@ class ServiceTrafficCollector:
                 "family", "inet", "hashsize", "1024", "maxelem", "65536"
             ], stderr=subprocess.DEVNULL)
 
-        # 3. Clean up old rules with comment "service_" from filter and nat tables
+        # 3. Clean up old rules with comment "service_" or matching "5353" from filter and nat tables
         for table in ["filter", "nat"]:
-            chain_list = ["INPUT", "FORWARD", "OUTPUT"] if table == "filter" else ["PREROUTING"]
+            chain_list = ["INPUT", "FORWARD", "OUTPUT"] if table == "filter" else ["PREROUTING", "OUTPUT"]
             for chain in chain_list:
                 while True:
                     res = subprocess.run(["iptables", "-t", table, "-L", chain, "-n", "--line-numbers"], capture_output=True, text=True)
@@ -509,11 +509,13 @@ class ServiceTrafficCollector:
                     else:
                         break
 
-        # 4. Insert transparent DNS redirection rules in NAT table
+        # 4. Insert transparent DNS redirection rules in NAT table (PREROUTING for VPNs, OUTPUT for local proxy resolution)
         subprocess.run(["iptables", "-t", "nat", "-I", "PREROUTING", "-i", "vpns+", "-p", "udp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"])
         subprocess.run(["iptables", "-t", "nat", "-I", "PREROUTING", "-i", "vpns+", "-p", "tcp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"])
         subprocess.run(["iptables", "-t", "nat", "-I", "PREROUTING", "-i", "tap_vpn", "-p", "udp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"])
         subprocess.run(["iptables", "-t", "nat", "-I", "PREROUTING", "-i", "tap_vpn", "-p", "tcp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"])
+        subprocess.run(["iptables", "-t", "nat", "-I", "OUTPUT", "-p", "udp", "--dport", "53", "-m", "owner", "!", "--uid-owner", "dnsmasq", "-j", "REDIRECT", "--to-ports", "5353"])
+        subprocess.run(["iptables", "-t", "nat", "-I", "OUTPUT", "-p", "tcp", "--dport", "53", "-m", "owner", "!", "--uid-owner", "dnsmasq", "-j", "REDIRECT", "--to-ports", "5353"])
 
         # 5. Insert filter rules (FORWARD, INPUT, OUTPUT)
         for s in services:
