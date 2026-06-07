@@ -72,9 +72,42 @@
     }
 
     function getTooltipLabelColor(ctx) {
+        const dark = isDarkMode();
         const hasHover = _legendHover.has(ctx.chart);
-        if (!hasHover) return "#475569";
-        return (_legendHover.get(ctx.chart) === ctx.datasetIndex) ? "#0f172a" : "#94a3b8";
+        if (!hasHover) {
+            return dark ? "#94a3b8" : "#475569";
+        }
+        const isHovered = (_legendHover.get(ctx.chart) === ctx.datasetIndex);
+        if (dark) {
+            return isHovered ? "#ffffff" : "rgba(255, 255, 255, 0.4)";
+        } else {
+            return isHovered ? "#0f172a" : "#94a3b8";
+        }
+    }
+
+    function getTooltipConfig(labelCallback) {
+        return {
+            backgroundColor: () => isDarkMode() ? "rgba(15, 23, 42, 0.95)" : "rgba(255, 255, 255, 0.98)",
+            titleColor: () => isDarkMode() ? "#f8fafc" : "#1e293b",
+            bodyColor: () => isDarkMode() ? "#94a3b8" : "#475569",
+            borderColor: () => isDarkMode() ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.08)",
+            borderWidth: 1,
+            cornerRadius: 8,
+            padding: 10,
+            titleFont: { family: "'Inter', sans-serif", weight: "600", size: 12 },
+            bodyFont: { family: "'Inter', sans-serif", size: 11 },
+            callbacks: {
+                title: (items) => {
+                    if (items.length > 0) {
+                        const d = new Date(items[0].parsed.x);
+                        return d.toLocaleString();
+                    }
+                    return "";
+                },
+                label: labelCallback,
+                labelTextColor: (ctx) => getTooltipLabelColor(ctx)
+            }
+        };
     }
 
     const RANGE_MS = {
@@ -220,32 +253,11 @@
                     padding: 12
                 }
             }),
-            tooltip: {
-                backgroundColor: "rgba(255, 255, 255, 0.98)",
-                titleColor: "#1e293b",
-                bodyColor: "#475569",
-                borderColor: "rgba(0,0,0,0.08)",
-                borderWidth: 1,
-                cornerRadius: 8,
-                padding: 10,
-                titleFont: { family: "'Inter', sans-serif", weight: "600", size: 12 },
-                bodyFont: { family: "'Inter', sans-serif", size: 11 },
-                callbacks: {
-                    title: (items) => {
-                        if (items.length > 0) {
-                            const d = new Date(items[0].parsed.x);
-                            return d.toLocaleString();
-                        }
-                        return "";
-                    },
-                    label: (ctx) => {
-                        const val = ctx.parsed.y;
-                        const labelText = isPercent ? `${ctx.dataset.label}: ${val.toFixed(1)}%` : `${ctx.dataset.label}: ${val.toFixed(2)} Mbps`;
-                        return formatTooltipLabel(ctx, labelText);
-                    },
-                    labelTextColor: (ctx) => getTooltipLabelColor(ctx)
-                }
-            }
+            tooltip: getTooltipConfig((ctx) => {
+                const val = ctx.parsed.y;
+                const labelText = isPercent ? `${ctx.dataset.label}: ${val.toFixed(1)}%` : `${ctx.dataset.label}: ${val.toFixed(2)} Mbps`;
+                return formatTooltipLabel(ctx, labelText);
+            })
         },
         scales: {
             x: {
@@ -410,22 +422,17 @@
                         align: 'end',
                         labels: { boxWidth: 12, usePointStyle: true, font: { size: 10 } }
                     }),
-                    tooltip: {
-                        callbacks: {
-                            label: function (ctx) {
-                                const val = ctx.parsed.y;
-                                if (val === null) return null;
-                                let labelText = "";
-                                if (ctx.dataset.yAxisID === "y") {
-                                    labelText = `Usage: ${val.toFixed(1)}%`;
-                                } else {
-                                    labelText = `${ctx.dataset.label}: ${val.toFixed(1)} MB/s`;
-                                }
-                                return formatTooltipLabel(ctx, labelText);
-                            },
-                            labelTextColor: (ctx) => getTooltipLabelColor(ctx)
+                    tooltip: getTooltipConfig((ctx) => {
+                        const val = ctx.parsed.y;
+                        if (val === null) return null;
+                        let labelText = "";
+                        if (ctx.dataset.yAxisID === "y") {
+                            labelText = `Usage: ${val.toFixed(1)}%`;
+                        } else {
+                            labelText = `${ctx.dataset.label}: ${val.toFixed(1)} MB/s`;
                         }
-                    }
+                        return formatTooltipLabel(ctx, labelText);
+                    })
                 },
                 scales: {
                     x: {
@@ -497,17 +504,12 @@
                         align: 'end',
                         labels: { boxWidth: 12, usePointStyle: true, font: { size: 10 } }
                     }),
-                    tooltip: {
-                        callbacks: {
-                            label: function (ctx) {
-                                const val = ctx.parsed.y;
-                                if (val === null) return null;
-                                const labelText = `${ctx.dataset.label}: ${Math.round(val)}`;
-                                return formatTooltipLabel(ctx, labelText);
-                            },
-                            labelTextColor: (ctx) => getTooltipLabelColor(ctx)
-                        }
-                    }
+                    tooltip: getTooltipConfig((ctx) => {
+                        const val = ctx.parsed.y;
+                        if (val === null) return null;
+                        const labelText = `${ctx.dataset.label}: ${Math.round(val)}`;
+                        return formatTooltipLabel(ctx, labelText);
+                    })
                 },
                 scales: {
                     x: {
@@ -652,31 +654,10 @@
                         padding: 12
                     }
                 }),
-                tooltip: {
-                    backgroundColor: "rgba(255, 255, 255, 0.98)",
-                    titleColor: "#1e293b",
-                    bodyColor: "#475569",
-                    borderColor: "rgba(0,0,0,0.08)",
-                    borderWidth: 1,
-                    cornerRadius: 8,
-                    padding: 10,
-                    titleFont: { family: "'Inter', sans-serif", weight: "600", size: 12 },
-                    bodyFont: { family: "'Inter', sans-serif", size: 11 },
-                    callbacks: {
-                        title: (items) => {
-                            if (items.length > 0) {
-                                const d = new Date(items[0].parsed.x);
-                                return d.toLocaleString();
-                            }
-                            return "";
-                        },
-                        label: (ctx) => {
-                            const labelText = `${ctx.dataset.label}: ${ctx.parsed.y}`;
-                            return formatTooltipLabel(ctx, labelText);
-                        },
-                        labelTextColor: (ctx) => getTooltipLabelColor(ctx)
-                    }
-                }
+                tooltip: getTooltipConfig((ctx) => {
+                    const labelText = `${ctx.dataset.label}: ${ctx.parsed.y}`;
+                    return formatTooltipLabel(ctx, labelText);
+                })
             },
             scales: {
                 x: {
