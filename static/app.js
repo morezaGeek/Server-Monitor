@@ -161,6 +161,42 @@
             mode: "index",
             intersect: false
         },
+        onHover(event, activeElements, chart) {
+            const nativeEvt = event.native || event;
+            const nearest = chart.getElementsAtEventForMode(nativeEvt, 'nearest', { intersect: false }, true);
+            const idx = (nearest && nearest[0]) ? nearest[0].datasetIndex : -1;
+            
+            chart.data.datasets.forEach((dataset, i) => {
+                if (typeof dataset._origBorderWidth === 'undefined') {
+                    dataset._origBorderWidth = dataset.borderWidth || 2;
+                }
+                const isHovered = (idx >= 0 && i === idx);
+                dataset.borderWidth = isHovered ? (dataset._origBorderWidth + 1.5) : dataset._origBorderWidth;
+            });
+            
+            if (_legendHover.get(chart) !== idx) {
+                if (idx >= 0) {
+                    _legendHover.set(chart, idx);
+                } else {
+                    _legendHover.delete(chart);
+                }
+            }
+            
+            if (!chart.canvas._hasMouseOutListener) {
+                chart.canvas._hasMouseOutListener = true;
+                chart.canvas.addEventListener('mouseout', () => {
+                    chart.data.datasets.forEach((ds) => {
+                        if (typeof ds._origBorderWidth !== 'undefined') {
+                            ds.borderWidth = ds._origBorderWidth;
+                        }
+                    });
+                    _legendHover.delete(chart);
+                    chart.update('none');
+                });
+            }
+            
+            chart.update('none');
+        },
         plugins: {
             legend: makeLegend({
                 display: forceLegend || !isPercent,
@@ -548,6 +584,42 @@
             responsive: true,
             maintainAspectRatio: false,
             interaction: { mode: "index", intersect: false },
+            onHover(event, activeElements, chart) {
+                const nativeEvt = event.native || event;
+                const nearest = chart.getElementsAtEventForMode(nativeEvt, 'nearest', { intersect: false }, true);
+                const idx = (nearest && nearest[0]) ? nearest[0].datasetIndex : -1;
+                
+                chart.data.datasets.forEach((dataset, i) => {
+                    if (typeof dataset._origBorderWidth === 'undefined') {
+                        dataset._origBorderWidth = dataset.borderWidth || 2;
+                    }
+                    const isHovered = (idx >= 0 && i === idx);
+                    dataset.borderWidth = isHovered ? (dataset._origBorderWidth + 1.5) : dataset._origBorderWidth;
+                });
+                
+                if (_legendHover.get(chart) !== idx) {
+                    if (idx >= 0) {
+                        _legendHover.set(chart, idx);
+                    } else {
+                        _legendHover.delete(chart);
+                    }
+                }
+                
+                if (!chart.canvas._hasMouseOutListener) {
+                    chart.canvas._hasMouseOutListener = true;
+                    chart.canvas.addEventListener('mouseout', () => {
+                        chart.data.datasets.forEach((ds) => {
+                            if (typeof ds._origBorderWidth !== 'undefined') {
+                                ds.borderWidth = ds._origBorderWidth;
+                            }
+                        });
+                        _legendHover.delete(chart);
+                        chart.update('none');
+                    });
+                }
+                
+                chart.update('none');
+            },
             plugins: {
                 legend: makeLegend({
                     display: true,
@@ -660,6 +732,11 @@
                 hostEl.textContent = data.system.hostname;
                 hostEl.style.display = "inline-block";
             }
+        }
+
+        // Check for updates
+        if (data.system && data.system.version) {
+            checkForUpdates(data.system.version);
         }
 
         // Subtitle
@@ -2195,13 +2272,18 @@
         }
     }
 
-    function checkForUpdates() {
+    let hasCheckedForUpdates = false;
+    function checkForUpdates(currentVersion) {
+        if (!currentVersion) return;
+        if (hasCheckedForUpdates) return;
+        hasCheckedForUpdates = true;
+
         fetch("https://api.github.com/repos/morezaGeek/Server-Monitor/releases/latest")
             .then(res => res.json())
             .then(release => {
                 if (release && release.tag_name) {
                     const latest = release.tag_name.replace(/^v/, "");
-                    const current = "1.0.0";
+                    const current = currentVersion.replace(/^v/, "");
                     
                     const parseVersion = (v) => v.split(".").map(Number);
                     const currParts = parseVersion(current);
@@ -2249,7 +2331,6 @@
         setupSettings();
         setupVirtualBrowser();
         setupSelfUpdate();
-        checkForUpdates();
 
         // Fetch interfaces first, then initial data + start timers
         fetchInterfaces().then(() => {
