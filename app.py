@@ -43,7 +43,7 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metrics.db")
 COLLECT_INTERVAL = 30  # seconds
 RETENTION_DAYS = 31
 PORT = 8080
-VERSION = "1.0.14"
+VERSION = "1.0.15"
 
 # ─── Public IP Cache ─────────────────────────────────────────────────────────
 
@@ -756,6 +756,8 @@ class ServiceTrafficCollector:
                     tag = outbound.get("tag")
                     settings = outbound.get("settings", {})
                     address = settings.get("address")
+                    if isinstance(address, list):
+                        address = address[0] if address else None
                     if not address and "vnext" in settings:
                         vnext = settings["vnext"]
                         if vnext and isinstance(vnext, list):
