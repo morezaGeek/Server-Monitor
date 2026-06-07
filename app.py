@@ -730,7 +730,6 @@ class ServiceTrafficCollector:
 
         # 4. Rewrite /etc/dnsmasq.conf with the updated domains and local DNS redirect
         try:
-            import os
             existing_lines = []
             if os.path.exists("/etc/dnsmasq.conf"):
                 with open("/etc/dnsmasq.conf", "r") as f:
