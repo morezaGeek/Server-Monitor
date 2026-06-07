@@ -43,7 +43,7 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metrics.db")
 COLLECT_INTERVAL = 30  # seconds
 RETENTION_DAYS = 31
 PORT = 8080
-VERSION = "1.0.11"
+VERSION = "1.0.12"
 
 # ─── Public IP Cache ─────────────────────────────────────────────────────────
 
@@ -634,7 +634,15 @@ class ServiceTrafficCollector:
             "speedtest": [
                 "speedtest.net", "ookla.com", "ooklaserver.net", "ookla-server.net", 
                 "speedtestcustom.com", "speed.cloudflare.com", "measurementlab.net", 
-                "speedof.me", "fast.com"
+                "speedof.me", "fast.com",
+                "speedtest.shatel.ir", "speedtest2.shatel.ir", "speedtest3.shatel.ir",
+                "speedtest.irancell.ir", "speedtest2.irancell.ir", "speedtest3.irancell.ir",
+                "speedtest.mci.ir", "speedtest2.mci.ir", "speedtest3.mci.ir",
+                "speedtest.rightel.ir", "speedtest.asiatech.ir", "speedtest.tci.ir",
+                "speedtest.parsonline.com", "speedtest.parsonline.ir", "speedtest.pishgaman.net",
+                "speedtest.mobinnet.ir", "speedtest.zitel.ir", "speedtest.fanap.ir",
+                "speed.telecom.ir", "speedtest.telecom.ir", "speed.irancell.ir",
+                "speed.mci.ir", "speed.rightel.ir"
             ]
         }
 
@@ -703,14 +711,7 @@ class ServiceTrafficCollector:
             "speedtest": speedtest
         }
 
-        # 2. Create ipsets if they don't exist
-        for s in services_domains.keys():
-            subprocess.run([
-                "ipset", "create", f"ipset_{s}", "hash:ip", 
-                "family", "inet", "hashsize", "1024", "maxelem", "65536"
-            ], stderr=subprocess.DEVNULL)
-
-        # 3. Clean up old rules with comment "service_" or matching "5353" from filter and nat tables
+        # 2. Clean up old rules with comment "service_" or matching "5353" from filter and nat tables first
         for table in ["filter", "nat"]:
             chain_list = ["INPUT", "FORWARD", "OUTPUT"] if table == "filter" else ["PREROUTING", "OUTPUT"]
             for chain in chain_list:
@@ -727,6 +728,29 @@ class ServiceTrafficCollector:
                         subprocess.run(["iptables", "-t", table, "-D", chain, found_line])
                     else:
                         break
+
+        # 3. Recreate ipsets as hash:net to support CIDR networks (destroy old hash:ip sets)
+        for s in services_domains.keys():
+            subprocess.run(["ipset", "destroy", f"ipset_{s}"], stderr=subprocess.DEVNULL)
+            subprocess.run([
+                "ipset", "create", f"ipset_{s}", "hash:net", 
+                "family", "inet", "hashsize", "1024", "maxelem", "65536"
+            ], stderr=subprocess.DEVNULL)
+
+        # 4. Add Telegram CIDRs directly to ipset_telegram (bypasses client DNS resolution)
+        telegram_cidrs = [
+            "91.108.56.0/22",
+            "91.108.4.0/22",
+            "91.108.8.0/22",
+            "91.108.16.0/22",
+            "91.108.12.0/22",
+            "149.154.160.0/20",
+            "91.105.192.0/23",
+            "91.108.20.0/22",
+            "185.76.151.0/24"
+        ]
+        for cidr in telegram_cidrs:
+            subprocess.run(["ipset", "add", "ipset_telegram", cidr], stderr=subprocess.DEVNULL)
 
         # 4. Rewrite /etc/dnsmasq.conf with the updated domains and local DNS redirect
         try:
