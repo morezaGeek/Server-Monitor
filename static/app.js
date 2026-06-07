@@ -1417,8 +1417,9 @@
     // ─── Dark Mode Toggle ────────────────────────────────────────────────────
 
     function isDarkMode() {
-        const t = document.documentElement.getAttribute("data-theme");
-        return t !== "light"; // All other themes are dark-based, so chart grids should be dark colored
+        const t = document.documentElement.getAttribute("data-theme") || "dark";
+        const lightThemes = ["light", "catppuccin-latte", "solarized-light", "gruvbox-light", "material-light", "rose-pine-dawn"];
+        return !lightThemes.includes(t);
     }
 
     function updateChartColors() {

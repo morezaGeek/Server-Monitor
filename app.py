@@ -43,7 +43,7 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metrics.db")
 COLLECT_INTERVAL = 30  # seconds
 RETENTION_DAYS = 31
 PORT = 8080
-VERSION = "1.0.8"
+VERSION = "1.0.9"
 
 # ─── Public IP Cache ─────────────────────────────────────────────────────────
 
@@ -478,14 +478,75 @@ class ServiceTrafficCollector:
             subprocess.run(["apt-get", "update"])
             subprocess.run(["apt-get", "install", "-y", "ipset"])
 
-        services = [
-            "apple", "meta", "google", "google_search", "google_youtube", 
-            "google_play", "google_ai", "openai", "spotify", "netflix", 
-            "reddit", "speedtest"
-        ]
+        # Complete and disjoint list of domains for each service mapping
+        services_domains = {
+            "apple": [
+                "apple.com", "apple.co", "apple-dns.net", "apple-mapkit.com", "cdn-apple.com", 
+                "icloud-content.com", "icloud.com", "itunes.com", "mzstatic.com", "aaplimg.com", 
+                "apple-cloudkit.com", "appstore.com", "me.com", "apple-support.com", "apple.news", 
+                "apple-pay.com", "applemusic.com", "musickit.net", "icloud.net", "icloud-content.net", 
+                "apple-livephotos.com"
+            ],
+            "meta": [
+                "facebook.com", "facebook.net", "fb.com", "fb.me", "fbcdn.net", 
+                "fbsbx.com", "instagram.com", "cdninstagram.com", "whatsapp.com", 
+                "whatsapp.net", "messenger.com", "ig.me", "m.me", "whatsapp.org",
+                "threads.net", "oculus.com", "fb.co"
+            ],
+            "google_search": [
+                "www.google.com", "google.co", "google.co.uk", "google.ca", "google.de", "google.fr",
+                "google.it", "google.es", "google.nl", "google.com.br", "google.co.in", "google.co.jp",
+                "google.com.mx", "google.ru", "google.com.tw", "google.co.za"
+            ],
+            "google_youtube": [
+                "youtube.com", "ytimg.com", "googlevideo.com", "youtube-nocookie.com", 
+                "youtu.be", "youtubeeducation.com", "youtube-ui.l.google.com", "yt.be",
+                "youtube.co.uk", "youtube.co", "youtube.de", "youtube.fr"
+            ],
+            "google_play": [
+                "play.google.com", "ggpht.com", "android.clients.google.com", "play-lh.googleusercontent.com"
+            ],
+            "google_ai": [
+                "gemini.google.com", "generativelanguage.googleapis.com", 
+                "vertexai.googleapis.com", "aistudio.google.com", "makersuite.google.com",
+                "deepmind.com", "deepmind.google"
+            ],
+            "google_other": [
+                "google.com", "gstatic.com", "googleapis.com", "googleusercontent.com", "gvt1.com", 
+                "google-analytics.com", "googletagmanager.com", "googletagservices.com", 
+                "doubleclick.net", "gvt2.com", "gvt3.com", "googlezip.net", 
+                "urgency.google.com", "widevine.com", "chrome.com", "gmail.com",
+                "googleblog.com", "googlesource.com", "googlehosted.com"
+            ],
+            "openai": [
+                "openai.com", "chatgpt.com", "chat.openai.com", "api.openai.com", 
+                "identrust.com", "oaistatic.com", "oaiusercontent.com", "chat.com", "sora.com"
+            ],
+            "spotify": [
+                "spotify.com", "scdn.co", "spotifycdn.com", "spoti.fi", 
+                "spotifycdn.net", "spotify.design", "spotifyjobs.com", "spotify.link",
+                "pscdn.co", "byspotify.com", "tospotify.com"
+            ],
+            "netflix": [
+                "netflix.com", "nflxext.com", "nflxvideo.net", "nflxso.net", 
+                "nflximg.net", "netflixdnstest8.com", "netflix3.com", "nflximg.com",
+                "netflix.ca", "netflix.net", "nflxsearch.net"
+            ],
+            "telegram": [
+                "telegram.org", "telegram.me", "t.me", "telegram.dog", "telesco.pe", 
+                "comments.app", "stel.com", "tx.me", "tdesktop.com", "tg.dev", 
+                "telegram.space", "telegram.com", "cdn-telegram.org", "telegram-cdn.org",
+                "fragment.com", "graph.org", "telegra.ph", "telega.one"
+            ],
+            "speedtest": [
+                "speedtest.net", "ookla.com", "ooklaserver.net", "ookla-server.net", 
+                "speedtestcustom.com", "speed.cloudflare.com", "measurementlab.net", 
+                "speedof.me", "fast.com"
+            ]
+        }
 
         # 2. Create ipsets if they don't exist
-        for s in services:
+        for s in services_domains.keys():
             subprocess.run([
                 "ipset", "create", f"ipset_{s}", "hash:ip", 
                 "family", "inet", "hashsize", "1024", "maxelem", "65536"
@@ -509,7 +570,47 @@ class ServiceTrafficCollector:
                     else:
                         break
 
-        # 4. Insert transparent DNS redirection rules in NAT table (PREROUTING for VPNs, OUTPUT for local proxy resolution)
+        # 4. Rewrite /etc/dnsmasq.conf with the updated domains and local DNS redirect
+        try:
+            import os
+            existing_lines = []
+            if os.path.exists("/etc/dnsmasq.conf"):
+                with open("/etc/dnsmasq.conf", "r") as f:
+                    existing_lines = f.read().splitlines()
+
+            new_config_lines = []
+            for line in existing_lines:
+                clean_line = line.strip()
+                if clean_line.startswith("port=") or clean_line.startswith("listen-address=") or clean_line.startswith("server=") or clean_line.startswith("ipset=") or clean_line == "bind-interfaces":
+                    continue
+                new_config_lines.append(line)
+
+            dnsmasq_lines = [
+                "",
+                "# --- Service Analyzer DNS Mapping ---",
+                "port=5353",
+                "listen-address=127.0.0.1",
+                "bind-interfaces",
+                "server=8.8.8.8",
+                "server=1.1.1.1"
+            ]
+
+            # Write more specific sub-domains first
+            for service, domains in services_domains.items():
+                ipset_name = f"ipset_{service}"
+                for domain in domains:
+                    dnsmasq_lines.append(f"ipset=/{domain}/{ipset_name}")
+
+            new_config_lines.extend(dnsmasq_lines)
+            with open("/etc/dnsmasq.conf", "w") as f:
+                f.write("\n".join(new_config_lines))
+            
+            # Restart dnsmasq
+            subprocess.run(["systemctl", "restart", "dnsmasq"])
+        except Exception as e:
+            print(f"[ServiceCollector Error] Failed to write dnsmasq config: {e}")
+
+        # 5. Insert transparent DNS redirection rules in NAT table (PREROUTING for VPNs, OUTPUT for local proxy resolution)
         subprocess.run(["iptables", "-t", "nat", "-I", "PREROUTING", "-i", "vpns+", "-p", "udp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"])
         subprocess.run(["iptables", "-t", "nat", "-I", "PREROUTING", "-i", "vpns+", "-p", "tcp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"])
         subprocess.run(["iptables", "-t", "nat", "-I", "PREROUTING", "-i", "tap_vpn", "-p", "udp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"])
@@ -517,8 +618,8 @@ class ServiceTrafficCollector:
         subprocess.run(["iptables", "-t", "nat", "-I", "OUTPUT", "-p", "udp", "--dport", "53", "-m", "owner", "!", "--uid-owner", "dnsmasq", "-j", "REDIRECT", "--to-ports", "5353"])
         subprocess.run(["iptables", "-t", "nat", "-I", "OUTPUT", "-p", "tcp", "--dport", "53", "-m", "owner", "!", "--uid-owner", "dnsmasq", "-j", "REDIRECT", "--to-ports", "5353"])
 
-        # 5. Insert filter rules (FORWARD, INPUT, OUTPUT)
-        for s in services:
+        # 6. Insert filter rules (FORWARD, INPUT, OUTPUT)
+        for s in services_domains.keys():
             ipset_name = f"ipset_{s}"
             # FORWARD (routed VPN traffic)
             subprocess.run(["iptables", "-I", "FORWARD", "-m", "set", "--match-set", ipset_name, "src", "-m", "comment", "--comment", f"service_{s}_down", "-j", "ACCEPT"])
@@ -548,6 +649,14 @@ class ServiceTrafficCollector:
                             counters[service][0] += val
                         elif direction == "up":
                             counters[service][1] += val
+            
+            # Dynamically compute Google total from sub-services
+            if "google" not in counters:
+                counters["google"] = [0, 0]
+            for sub in ["google_search", "google_youtube", "google_play", "google_ai", "google_other"]:
+                if sub in counters:
+                    counters["google"][0] += counters[sub][0]
+                    counters["google"][1] += counters[sub][1]
         except Exception as e:
             print(f"[iptables parsing error] {e}")
         return counters

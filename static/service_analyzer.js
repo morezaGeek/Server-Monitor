@@ -10,13 +10,17 @@
     // Helper to get CSS variables for styling charts
     function getThemeColors() {
         const bodyStyle = getComputedStyle(document.body);
-        const isDark = document.body.classList.contains("dark-mode") || 
-                       bodyStyle.getPropertyValue("--bg-primary").trim() === "#282a36" ||
-                       bodyStyle.getPropertyValue("--bg-primary").trim() === "#0f172a";
+        const theme = document.documentElement.getAttribute("data-theme") || "dark";
+        const lightThemes = ["light", "catppuccin-latte", "solarized-light", "gruvbox-light", "material-light", "rose-pine-dawn"];
+        const isDark = !lightThemes.includes(theme);
         
+        // Use browser computed text color for 100% accurate contrast
+        const textColor = bodyStyle.color || (isDark ? "#f8f8f2" : "#0f172a");
+        const mutedColor = isDark ? "rgba(255, 255, 255, 0.5)" : "rgba(15, 23, 42, 0.5)";
+
         return {
-            text: bodyStyle.getPropertyValue("--text-primary").trim() || (isDark ? "#f8f8f2" : "#1e293b"),
-            muted: bodyStyle.getPropertyValue("--text-muted").trim() || (isDark ? "#6272a4" : "#64748b"),
+            text: textColor,
+            muted: mutedColor,
             border: bodyStyle.getPropertyValue("--border-color").trim() || (isDark ? "rgba(98, 114, 164, 0.3)" : "rgba(226, 232, 240, 0.8)"),
             grid: isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.03)",
             down: bodyStyle.getPropertyValue("--net-start").trim() || "#10b981",
@@ -400,8 +404,8 @@
             loadHistoricalMetrics();
         });
 
-        // Detect theme swap events (listening on system theme toggle if exist)
-        // If app.js changes theme class on body, we redetect and update chart colors
+        // Detect theme swap events (listening on data-theme change on html tag)
+        // If app.js changes theme data-theme on html, we redetect and update chart colors
         const observer = new MutationObserver(() => {
             if (throughputChart && payloadChart) {
                 const colors = getThemeColors();
@@ -412,17 +416,27 @@
                 throughputChart.options.scales.y.grid.color = colors.grid;
                 throughputChart.options.plugins.legend.labels.color = colors.text;
 
+                // Update throughput datasets colors dynamically
+                throughputChart.data.datasets[0].borderColor = colors.down;
+                throughputChart.data.datasets[0].backgroundColor = colors.downGlow;
+                throughputChart.data.datasets[1].borderColor = colors.up;
+                throughputChart.data.datasets[1].backgroundColor = colors.upGlow;
+
                 // Update payload chart options
                 payloadChart.options.scales.x.ticks.color = colors.muted;
                 payloadChart.options.scales.y.ticks.color = colors.muted;
                 payloadChart.options.scales.y.grid.color = colors.grid;
                 payloadChart.options.plugins.legend.labels.color = colors.text;
 
+                // Update payload datasets colors dynamically
+                payloadChart.data.datasets[0].backgroundColor = colors.down;
+                payloadChart.data.datasets[1].backgroundColor = colors.up;
+
                 updateCharts();
             }
         });
 
-        observer.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     }
 
     // Initialize module on page load
