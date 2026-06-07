@@ -65,6 +65,18 @@
         };
     }
 
+    // ─── Tooltip Helpers ─────────────────────────────────────────────────────
+    function formatTooltipLabel(ctx, text) {
+        const isHovered = (_legendHover.has(ctx.chart) && _legendHover.get(ctx.chart) === ctx.datasetIndex);
+        return isHovered ? `➔ ${text}` : `  ${text}`;
+    }
+
+    function getTooltipLabelColor(ctx) {
+        const hasHover = _legendHover.has(ctx.chart);
+        if (!hasHover) return "#475569";
+        return (_legendHover.get(ctx.chart) === ctx.datasetIndex) ? "#0f172a" : "#94a3b8";
+    }
+
     const RANGE_MS = {
         "1h": 3600 * 1000,
         "2h": 7200 * 1000,
@@ -228,9 +240,10 @@
                     },
                     label: (ctx) => {
                         const val = ctx.parsed.y;
-                        if (isPercent) return ` ${ctx.dataset.label}: ${val.toFixed(1)}%`;
-                        return ` ${ctx.dataset.label}: ${val.toFixed(2)} Mbps`;
-                    }
+                        const labelText = isPercent ? `${ctx.dataset.label}: ${val.toFixed(1)}%` : `${ctx.dataset.label}: ${val.toFixed(2)} Mbps`;
+                        return formatTooltipLabel(ctx, labelText);
+                    },
+                    labelTextColor: (ctx) => getTooltipLabelColor(ctx)
                 }
             }
         },
@@ -402,9 +415,15 @@
                             label: function (ctx) {
                                 const val = ctx.parsed.y;
                                 if (val === null) return null;
-                                if (ctx.dataset.yAxisID === "y") return ` Usage: ${val.toFixed(1)}%`;
-                                return ` ${ctx.dataset.label}: ${val.toFixed(1)} MB/s`;
-                            }
+                                let labelText = "";
+                                if (ctx.dataset.yAxisID === "y") {
+                                    labelText = `Usage: ${val.toFixed(1)}%`;
+                                } else {
+                                    labelText = `${ctx.dataset.label}: ${val.toFixed(1)} MB/s`;
+                                }
+                                return formatTooltipLabel(ctx, labelText);
+                            },
+                            labelTextColor: (ctx) => getTooltipLabelColor(ctx)
                         }
                     }
                 },
@@ -483,8 +502,10 @@
                             label: function (ctx) {
                                 const val = ctx.parsed.y;
                                 if (val === null) return null;
-                                return ` ${ctx.dataset.label}: ${Math.round(val)}`;
-                            }
+                                const labelText = `${ctx.dataset.label}: ${Math.round(val)}`;
+                                return formatTooltipLabel(ctx, labelText);
+                            },
+                            labelTextColor: (ctx) => getTooltipLabelColor(ctx)
                         }
                     }
                 },
@@ -649,7 +670,11 @@
                             }
                             return "";
                         },
-                        label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y}`
+                        label: (ctx) => {
+                            const labelText = `${ctx.dataset.label}: ${ctx.parsed.y}`;
+                            return formatTooltipLabel(ctx, labelText);
+                        },
+                        labelTextColor: (ctx) => getTooltipLabelColor(ctx)
                     }
                 }
             },
