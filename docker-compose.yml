@@ -7,6 +7,9 @@ services:
     restart: always
     # Share host network namespace to monitor all host interfaces and actual network speed
     network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
     environment:
       - PORT=8080
       - PANEL_USERNAME=admin
@@ -19,6 +22,11 @@ services:
       - /sys:/host/sys:ro
       # Persist historical database across container restarts
       - ./metrics.db:/app/metrics.db
+      # Mount X-UI directories for dynamic path resolution (read-only)
+      - /etc/x-ui:/etc/x-ui:ro
+      - /var/log:/var/log:ro
+      - /usr/local/x-ui:/usr/local/x-ui:ro
+      - /opt/x-ui:/opt/x-ui:ro
     logging:
       driver: "json-file"
       options:

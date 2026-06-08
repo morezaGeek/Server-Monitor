@@ -269,14 +269,23 @@ do_install() {
     echo -e "${BLUE}▸ Installing system dependencies...${NC}"
     if [[ "$OS" == "ubuntu" || "$OS" == "debian" ]]; then
         apt-get update -qq
-        apt-get install -y -qq python3 python3-pip python3-venv sqlite3 git curl wget certbot > /dev/null 2>&1
+        apt-get install -y -qq python3 python3-pip python3-venv sqlite3 git curl wget certbot iptables ipset dnsmasq > /dev/null 2>&1
     elif [[ "$OS" == "fedora" || "$OS" == "centos" || "$OS" == "rhel" || "$OS" == "almalinux" || "$OS" == "rocky" ]]; then
-        dnf install -y -q python3 python3-pip sqlite git curl wget certbot > /dev/null 2>&1
+        dnf install -y -q python3 python3-pip sqlite git curl wget certbot iptables ipset dnsmasq > /dev/null 2>&1
     else
         echo -e "${RED}✘ Unsupported OS: $OS${NC}"
         exit 1
     fi
     echo -e "${GREEN}✔ Dependencies installed${NC}"
+
+    # Configure dnsmasq to avoid port 53 conflict before starting
+    echo -e "${BLUE}▸ Configuring dnsmasq...${NC}"
+    if [ -f /etc/dnsmasq.conf ]; then
+        if ! grep -q "port=5353" /etc/dnsmasq.conf; then
+            echo -e "\nport=5353\nlisten-address=127.0.0.1\nbind-interfaces\n" >> /etc/dnsmasq.conf
+        fi
+        systemctl restart dnsmasq > /dev/null 2>&1 || true
+    fi
 
     # Clone/update
     if [ "$SKIP_GIT" = "true" ]; then

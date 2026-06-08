@@ -13,6 +13,9 @@ A professional, real-time server monitoring dashboard with a high-performance ba
 - **Persistent History**: Stores historical metrics in an optimized SQLite database with theme-tailored solid popover time ranges.
 - **Detached Dual Update & Reinstall**: Elegant Orange (Update via GitHub) and Blue (Reinstall locally) pill buttons running inside detached systemd transient scopes (`systemd-run`) surviving panel service stops and auto-reconnecting.
 - **GitHub Release Tracking**: Automatically queries public GitHub Releases in the browser and displays a gorgeous pulsing amber notification badge (`New: v1.0.1`) next to the Update button when a newer version is published.
+- **Service Traffic Analyzer**: Deep Packet Inspection and DNS interception (via `iptables`, `ipset`, and `dnsmasq`) to track exact bandwidth usage of specific services like Google, Meta, Spotify, Telegram, Apple, etc.
+- **X-UI V2Ray Integration**: Dynamically reads X-UI SQLite databases to show real-time user metrics, total limits, and unique active IPs without crashing the panel. Supports multiple X-UI forks (Sanaei, Alireza, 3x-ui).
+- **Universal OS Compatibility**: Intelligent installer automatically detects the OS (Ubuntu, Debian, CentOS, RHEL, AlmaLinux) and installs appropriate dependencies.
 - **🌐 Virtual Browser**: Secure, Docker-based Chromium browser accessible directly from the dashboard.
 - **Beautiful UI**: Modern glassmorphic aesthetic with support for multiple premium themes (Dark, Light, Gruvbox, Nord, Cyberpunk, etc.).
 
@@ -62,6 +65,9 @@ services:
     container_name: server-monitor
     restart: always
     network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
     environment:
       - PORT=8080                  # Change this if port 8080 is in use
       - PANEL_USERNAME=admin       # Your login username
@@ -71,6 +77,9 @@ services:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /opt/server-monitor/metrics.db:/app/metrics.db
+      - /etc/x-ui:/etc/x-ui:ro
+      - /usr/local/x-ui:/usr/local/x-ui:ro
+      - /var/log:/var/log:ro
 EOF
 ```
 

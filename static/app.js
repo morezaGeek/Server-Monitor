@@ -2060,7 +2060,7 @@
                 if (res.ok) {
                     const data = await res.json();
                     if (data.error) {
-                        tableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #ef4444; padding: 20px;">${data.error}</td></tr>`;
+                        tableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #ef4444; padding: 20px;">${data.error}</td></tr>`;
                         return;
                     }
                     cachedUsers = data;
@@ -2089,14 +2089,15 @@
             }
         }
 
-        function formatLastActive(lastOnline) {
+        function formatLastActive(lastOnline, isOnline) {
+            if (isOnline) return '<span style="color: #10b981; font-weight: bold;">Online</span>';
             if (!lastOnline) return '<span style="color: var(--text-secondary);">Never</span>';
             const date = new Date(lastOnline);
             const now = new Date();
             const diffMs = now - date;
             const diffMins = Math.floor(diffMs / 60000);
 
-            if (diffMins < 1) return '<span style="color: #10b981; font-weight: bold;">Just now</span>';
+            if (diffMins < 1) return 'Just now';
             if (diffMins < 60) return `${diffMins}m ago`;
             const diffHours = Math.floor(diffMins / 60);
             if (diffHours < 24) return `${diffHours}h ago`;
@@ -2120,7 +2121,7 @@
             totalCountSpan.textContent = cachedUsers.length;
 
             if (filtered.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-secondary); padding: 30px;">No users found</td></tr>`;
+                tableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-secondary); padding: 30px;">No users found</td></tr>`;
                 return;
             }
 
@@ -2130,12 +2131,12 @@
                     ? '<span class="pulse-dot" style="display: inline-block; margin-right: 8px; vertical-align: middle;"></span>' 
                     : '<span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #ef4444; margin-right: 8px; vertical-align: middle;"></span>';
                 
-                const speedDownText = formatSpeed(u.down_speed_mbps);
-                const speedUpText = formatSpeed(u.up_speed_mbps);
+                const speedDownText = isOnline ? formatSpeed(u.down_speed_mbps) : formatSpeed(0);
+                const speedUpText = isOnline ? formatSpeed(u.up_speed_mbps) : formatSpeed(0);
                 
                 // Highlight active speeds
-                const speedDownStyle = u.down_speed_mbps > 0.05 ? 'color: #10b981; font-weight: bold;' : '';
-                const speedUpStyle = u.up_speed_mbps > 0.05 ? 'color: #3b82f6; font-weight: bold;' : '';
+                const speedDownStyle = (isOnline && u.down_speed_mbps > 0.05) ? 'color: #10b981; font-weight: bold;' : '';
+                const speedUpStyle = (isOnline && u.up_speed_mbps > 0.05) ? 'color: #3b82f6; font-weight: bold;' : '';
 
                 // Limit display: if total_limit_gb is 0.0, it means unlimited
                 const limitText = u.total_limit_gb > 0 ? ` / ${u.total_limit_gb} GB` : '';
@@ -2153,7 +2154,8 @@
                         <td style="text-align: right; ${speedUpStyle}">${speedUpText}</td>
                         <td style="text-align: right;">${totalDownText}${limitText}</td>
                         <td style="text-align: right;">${totalUpText}</td>
-                        <td style="text-align: center; font-size: 0.85rem;">${formatLastActive(u.last_online)}</td>
+                        <td style="text-align: center; font-weight: ${u.unique_ips > 1 ? 'bold' : 'normal'}; color: ${u.unique_ips > 2 ? '#f59e0b' : 'inherit'};">${u.unique_ips || 0}</td>
+                        <td style="text-align: center; font-size: 0.85rem;">${formatLastActive(u.last_online, isOnline)}</td>
                     </tr>
                 `;
             }).join('');

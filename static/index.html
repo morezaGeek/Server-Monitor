@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=1.0.17">
+    <link rel="stylesheet" href="/static/style.css?v=1.0.17.2">
 </head>
 
 <body>
@@ -801,7 +801,7 @@
             </div>
             
             <div class="v2ray-controls" style="display: flex; gap: 15px; margin-bottom: 20px; align-items: center;">
-                <input type="text" id="v2raySearch" placeholder="Search users by email..." style="flex: 1; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(0,0,0,0.2); color: var(--text-primary); font-size: 0.9rem; outline: none; transition: border-color 0.2s;">
+                <input type="text" id="v2raySearch" placeholder="Search users by email..." style="flex: 1; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-size: 0.9rem; outline: none; transition: border-color 0.2s;">
                 <div class="v2ray-stats" style="font-size: 0.9rem; color: var(--text-secondary); background: var(--bg-card); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color); white-space: nowrap;">
                     Online: <span id="v2rayActiveCount" style="color: #10b981; font-weight: bold;">0</span> / Total: <span id="v2rayTotalCount" style="font-weight: bold;">0</span>
                 </div>
@@ -816,12 +816,13 @@
                             <th style="position: sticky; top: 0; background: var(--bg-card); z-index: 1; text-align: right;">Upload Speed</th>
                             <th style="position: sticky; top: 0; background: var(--bg-card); z-index: 1; text-align: right;">Total Down</th>
                             <th style="position: sticky; top: 0; background: var(--bg-card); z-index: 1; text-align: right;">Total Up</th>
+                            <th style="position: sticky; top: 0; background: var(--bg-card); z-index: 1; text-align: center;">IPs</th>
                             <th style="position: sticky; top: 0; background: var(--bg-card); z-index: 1; text-align: center;">Last Active</th>
                         </tr>
                     </thead>
                     <tbody id="v2rayTableBody">
                         <tr>
-                            <td colspan="6" style="text-align: center; padding: 30px; color: var(--text-secondary);">Loading V2ray users...</td>
+                            <td colspan="7" style="text-align: center; padding: 30px; color: var(--text-secondary);">Loading V2ray users...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -1121,8 +1122,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script
         src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-    <script src="/static/app.js?v=1.0.17"></script>
-    <script src="/static/service_analyzer.js?v=1.0.17"></script>
+    <script src="/static/app.js?v=1.0.17.2"></script>
+    <script src="/static/service_analyzer.js?v=1.0.17.2"></script>
 </body>
 
 </html>

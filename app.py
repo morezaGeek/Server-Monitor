@@ -43,7 +43,37 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metrics.db")
 COLLECT_INTERVAL = 30  # seconds
 RETENTION_DAYS = 31
 PORT = 8080
-VERSION = "1.0.17"
+VERSION = "1.0.18"
+
+# ─── X-UI Dynamic Paths ──────────────────────────────────────────────────────
+class XUIPaths:
+    @staticmethod
+    def get_db_path():
+        paths = ["/etc/x-ui/x-ui.db", "/usr/local/x-ui/x-ui.db", "/opt/x-ui/x-ui.db"]
+        for p in paths:
+            if os.path.exists(p): return p
+        return "/etc/x-ui/x-ui.db"
+    
+    @staticmethod
+    def get_access_log():
+        paths = ["/var/log/x-ui/access.log", "/usr/local/x-ui/access.log", "/var/log/xray/access.log", "/etc/x-ui/access.log"]
+        for p in paths:
+            if os.path.exists(p): return p
+        return "/var/log/x-ui/access.log"
+
+    @staticmethod
+    def get_geosite_path():
+        paths = ["/usr/local/x-ui/bin/geosite.dat", "/usr/bin/xray/geosite.dat", "/usr/local/bin/geosite.dat"]
+        for p in paths:
+            if os.path.exists(p): return p
+        return "/usr/local/x-ui/bin/geosite.dat"
+
+    @staticmethod
+    def get_xray_config():
+        paths = ["/usr/local/x-ui/bin/config.json", "/etc/x-ui/config.json", "/usr/local/etc/xray/config.json"]
+        for p in paths:
+            if os.path.exists(p): return p
+        return "/usr/local/x-ui/bin/config.json"
 
 # ─── Public IP Cache ─────────────────────────────────────────────────────────
 
@@ -651,7 +681,7 @@ class ServiceTrafficCollector:
         }
 
         # Try to parse and extract domains from geosite.dat if available
-        GEOSITE_PATH = "/usr/local/x-ui/bin/geosite.dat"
+        GEOSITE_PATH = XUIPaths.get_geosite_path()
         geosite_cats = {}
         if os.path.exists(GEOSITE_PATH):
             try:
@@ -801,7 +831,7 @@ class ServiceTrafficCollector:
 
         # 4.6 Parse Xray config and dynamically seed outbound proxy IPs to ipsets (for tunnel traffic accounting)
         try:
-            xray_config_path = "/usr/local/x-ui/bin/config.json"
+            xray_config_path = XUIPaths.get_xray_config()
             if os.path.exists(xray_config_path):
                 import json, socket
                 with open(xray_config_path, "r") as f:
@@ -1554,139 +1584,202 @@ async def current_metrics(username: str = Depends(get_current_username)):
     }
 
 
-# global storage for V2ray speed tracking
-v2ray_prev_bytes = {} # {email: [{"up": int, "down": int, "time": float}]}
+# global storage for V2ray speed tracking (safe: uses sqlite3 CLI, never opens DB directly)
+v2ray_prev_bytes = {}  # {email: [{"up": int, "down": int, "time": float}]}
 v2ray_lock = threading.Lock()
+v2ray_cached_results = []
+v2ray_ip_counts = {}  # {email: set_of_ips}
 
-def _v2ray_background_loop():
-    """Background thread that periodically queries X-UI db to maintain traffic history."""
-    import sqlite3
-    import time
-    
-    db_path = "/etc/x-ui/x-ui.db"
-    if not os.path.exists(db_path):
-        return
-        
-    global v2ray_prev_bytes
+def _v2ray_background_reader():
+    """Background thread: reads X-UI data via sqlite3 CLI every 5 seconds.
+    Uses the system sqlite3 command-line tool which handles WAL locking properly
+    and never interferes with X-UI's own database operations."""
+    import time as _time
+    import subprocess as _sp
+
+    db_path = XUIPaths.get_db_path()
+    global v2ray_prev_bytes, v2ray_cached_results
+
     while True:
+        if not os.path.exists(db_path):
+            _time.sleep(30)
+            continue
+
         try:
-            conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-            cursor = conn.cursor()
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='client_traffics';")
-            if not cursor.fetchone():
-                conn.close()
-                time.sleep(30)
+            proc = _sp.run(
+                ["sqlite3", "-separator", "|", db_path,
+                 "SELECT email, up, down, last_online, expiry_time, total, enable FROM client_traffics;"],
+                capture_output=True, text=True, timeout=5
+            )
+            if proc.returncode != 0:
+                _time.sleep(10)
                 continue
-                
-            cursor.execute("SELECT email, up, down FROM client_traffics;")
-            rows = cursor.fetchall()
-            conn.close()
-            
-            current_time = time.time()
+
+            rows = []
+            for line in proc.stdout.strip().split("\n"):
+                if not line.strip():
+                    continue
+                parts = line.split("|")
+                if len(parts) >= 7:
+                    try:
+                        email = parts[0]
+                        up = int(parts[1]) if parts[1] else 0
+                        down = int(parts[2]) if parts[2] else 0
+                        last_online = int(parts[3]) if parts[3] else 0
+                        expiry_time = int(parts[4]) if parts[4] else 0
+                        total = int(parts[5]) if parts[5] else 0
+                        enable = int(parts[6]) if parts[6] else 0
+                        rows.append((email, up, down, last_online, expiry_time, total, enable))
+                    except (ValueError, IndexError):
+                        continue
+
+            current_time = _time.time()
+            results = []
+
             with v2ray_lock:
                 for row in rows:
-                    email, up, down = row
+                    email, up, down, last_online, expiry_time, total, enable = row
                     if not email:
                         continue
-                    history = v2ray_prev_bytes.get(email, [])
-                    history.append({
-                        "up": up,
-                        "down": down,
-                        "time": current_time
-                    })
-                    # Keep entries within 100 seconds
-                    history = [e for e in history if current_time - e["time"] <= 100]
-                    v2ray_prev_bytes[email] = history
-        except Exception:
-            pass
-        time.sleep(10)
 
-# Start background thread for V2ray speed tracking
-_v2ray_tracker_thread = threading.Thread(target=_v2ray_background_loop, daemon=True)
-_v2ray_tracker_thread.start()
+                    history = v2ray_prev_bytes.get(email, [])
+                    history.append({"up": up, "down": down, "time": current_time})
+                    history = [e for e in history if current_time - e["time"] <= 120]
+                    v2ray_prev_bytes[email] = history
+
+                    # Compute speed from oldest to newest data point
+                    if len(history) >= 2:
+                        oldest = history[0]
+                        latest = history[-1]
+                        elapsed = latest["time"] - oldest["time"]
+                        if elapsed > 2.0:
+                            down_speed = max(0.0, (latest["down"] - oldest["down"]) * 8 / (elapsed * 1024 * 1024))
+                            up_speed = max(0.0, (latest["up"] - oldest["up"]) * 8 / (elapsed * 1024 * 1024))
+                        else:
+                            down_speed = 0.0
+                            up_speed = 0.0
+                    else:
+                        down_speed = 0.0
+                        up_speed = 0.0
+
+                    # User is online only if actually using bandwidth (>= 50 Kbps)
+                    speed_threshold = 50 / 1024  # 50 Kbps in Mbps
+                    is_online = (down_speed >= speed_threshold or up_speed >= speed_threshold)
+
+                    if not is_online:
+                        down_speed = 0.0
+                        up_speed = 0.0
+
+                    results.append({
+                        "email": email,
+                        "down_speed_mbps": round(down_speed, 3),
+                        "up_speed_mbps": round(up_speed, 3),
+                        "total_down_gb": round(down / (1024 ** 3), 3),
+                        "total_up_gb": round(up / (1024 ** 3), 3),
+                        "last_online": last_online,
+                        "is_online": is_online,
+                        "enable": bool(enable),
+                        "total_limit_gb": round(total / (1024 ** 3), 2) if total else 0.0,
+                        "expiry_time": expiry_time,
+                        "unique_ips": len(v2ray_ip_counts.get(email, set()))
+                    })
+
+                results.sort(key=lambda x: x["down_speed_mbps"], reverse=True)
+                v2ray_cached_results = results
+
+        except Exception as e:
+            import traceback
+            print(f"Error in _v2ray_background_reader: {e}")
+            traceback.print_exc()
+
+        _time.sleep(10)
+
+# Start background reader thread
+_v2ray_reader_thread = threading.Thread(target=_v2ray_background_reader, daemon=True)
+_v2ray_reader_thread.start()
+
+def _v2ray_ip_counter():
+    """Background thread: parses Xray access log every 10 seconds to count
+    unique IPs per user from the last 60 seconds of log entries."""
+    import time as _time
+    import subprocess as _sp
+    import re
+    from datetime import datetime, timedelta
+
+    log_path = XUIPaths.get_access_log()
+    global v2ray_ip_counts
+
+    while True:
+        try:
+            if not os.path.exists(log_path):
+                _time.sleep(30)
+                continue
+
+            # Read last 2000 lines (enough for ~60 seconds of traffic)
+            proc = _sp.run(
+                ["tail", "-2000", log_path],
+                capture_output=True, text=True, timeout=5
+            )
+            if proc.returncode != 0:
+                _time.sleep(10)
+                continue
+
+            now = datetime.now()
+            cutoff = now - timedelta(seconds=60)
+            ip_map = {}  # {email: set(ips)}
+
+            for line in proc.stdout.split("\n"):
+                if not line or "email:" not in line:
+                    continue
+                try:
+                    # Parse timestamp: 2026/06/09 01:59:58.472928
+                    ts_str = line[:23]  # "2026/06/09 01:59:58.47"
+                    ts = datetime.strptime(ts_str[:19], "%Y/%m/%d %H:%M:%S")
+                    if ts < cutoff:
+                        continue
+
+                    # Parse IP: "from 2.147.243.2:0"
+                    from_idx = line.find("from ")
+                    if from_idx == -1:
+                        continue
+                    ip_part = line[from_idx + 5:].split(":")[0]
+                    if ip_part == "127.0.0.1":
+                        continue
+
+                    # Parse email: "email: AliGhajar"
+                    email_idx = line.rfind("email: ")
+                    if email_idx == -1:
+                        continue
+                    email = line[email_idx + 7:].strip()
+                    if not email:
+                        continue
+
+                    if email not in ip_map:
+                        ip_map[email] = set()
+                    ip_map[email].add(ip_part)
+                except Exception:
+                    continue
+
+            with v2ray_lock:
+                v2ray_ip_counts = ip_map
+
+        except Exception as e:
+            import traceback
+            print(f"Error in _v2ray_ip_counter: {e}")
+            traceback.print_exc()
+
+        _time.sleep(10)
+
+# Start background IP counter thread
+_v2ray_ip_thread = threading.Thread(target=_v2ray_ip_counter, daemon=True)
+_v2ray_ip_thread.start()
 
 @app.get("/api/v2ray/users")
-async def get_v2ray_users(username: str = Depends(get_current_username)):
-    """Query /etc/x-ui/x-ui.db and compute real-time download/upload speeds for each client using sliding history."""
-    import sqlite3
-    import time
-    
-    db_path = "/etc/x-ui/x-ui.db"
-    if not os.path.exists(db_path):
-        return {"error": "X-UI database not found at /etc/x-ui/x-ui.db"}
-        
-    try:
-        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-        cursor = conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='client_traffics';")
-        if not cursor.fetchone():
-            conn.close()
-            return {"error": "client_traffics table not found in x-ui.db"}
-            
-        cursor.execute("SELECT email, up, down, last_online, expiry_time, total, enable FROM client_traffics;")
-        rows = cursor.fetchall()
-        conn.close()
-    except Exception as e:
-        return {"error": f"Failed to query X-UI database: {str(e)}"}
-        
-    current_time = time.time()
-    results = []
-    
-    global v2ray_prev_bytes
+def get_v2ray_users(username: str = Depends(get_current_username)):
+    """Return cached V2ray user data. Data is refreshed every 5s by a background thread
+    that reads via sqlite3 CLI — no direct Python connection to the X-UI database."""
     with v2ray_lock:
-        for row in rows:
-            email, up, down, last_online, expiry_time, total, enable = row
-            if not email:
-                continue
-                
-            history = v2ray_prev_bytes.get(email, [])
-            history.append({
-                "up": up,
-                "down": down,
-                "time": current_time
-            })
-            # Keep entries within 100 seconds
-            history = [e for e in history if current_time - e["time"] <= 100]
-            v2ray_prev_bytes[email] = history
-            
-            # Compute speed based on oldest vs latest entry in the history
-            if len(history) >= 2:
-                oldest = history[0]
-                latest = history[-1]
-                elapsed = latest["time"] - oldest["time"]
-                
-                if elapsed > 5.0: # require at least 5 seconds of span for calculation
-                    down_speed = max(0.0, (latest["down"] - oldest["down"]) * 8 / (elapsed * 1024 * 1024))
-                    up_speed = max(0.0, (latest["up"] - oldest["up"]) * 8 / (elapsed * 1024 * 1024))
-                else:
-                    down_speed = 0.0
-                    up_speed = 0.0
-            else:
-                down_speed = 0.0
-                up_speed = 0.0
-                
-            is_online = False
-            if last_online:
-                time_diff = current_time - (last_online / 1000.0)
-                if time_diff < 300: # 5 minutes
-                    is_online = True
-                    
-            results.append({
-                "email": email,
-                "down_speed_mbps": round(down_speed, 3),
-                "up_speed_mbps": round(up_speed, 3),
-                "total_down_gb": round(down / (1024 ** 3), 3),
-                "total_up_gb": round(up / (1024 ** 3), 3),
-                "last_online": last_online,
-                "is_online": is_online,
-                "enable": bool(enable),
-                "total_limit_gb": round(total / (1024 ** 3), 2) if total else 0.0,
-                "expiry_time": expiry_time
-            })
-            
-    # Sort descending by download speed
-    results.sort(key=lambda x: x["down_speed_mbps"], reverse=True)
-    return results
+        return list(v2ray_cached_results)
 
 
 

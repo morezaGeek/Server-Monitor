@@ -748,11 +748,38 @@
     opacity: 1;
 }
 
-/* V2ray overlay modal box */
+/* V2ray overlay modal box with iOS Glassmorphism */
 .v2ray-modal-box {
     max-width: 960px !important;
     width: 95%;
     padding: 30px;
+    background: var(--bg-card) !important;
+    backdrop-filter: blur(25px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(25px) saturate(180%) !important;
+    border: 1px solid var(--border-color) !important;
+    box-shadow: var(--shadow-lg) !important;
+    color: var(--text-primary);
+}
+
+/* Adjust components inside the glassmorphic modal to blend in */
+.v2ray-modal-box .process-table-container {
+    background: transparent !important;
+    border-color: var(--border-color) !important;
+}
+
+.v2ray-modal-box .process-table th {
+    background: var(--bg-card-hover) !important;
+    border-bottom: 2px solid var(--border-color) !important;
+    color: var(--text-secondary) !important;
+}
+
+.v2ray-modal-box .process-table td {
+    border-bottom: 1px solid var(--border-color) !important;
+    color: var(--text-primary) !important;
+}
+
+.v2ray-modal-box .process-table tbody tr:hover {
+    background: var(--bg-card-hover) !important;
 }
 
 #v2raySearch:focus {
