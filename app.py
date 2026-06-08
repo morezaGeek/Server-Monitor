@@ -43,7 +43,7 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metrics.db")
 COLLECT_INTERVAL = 30  # seconds
 RETENTION_DAYS = 31
 PORT = 8080
-VERSION = "1.0.16"
+VERSION = "1.0.17"
 
 # ─── Public IP Cache ─────────────────────────────────────────────────────────
 
@@ -1552,6 +1552,97 @@ async def current_metrics(username: str = Depends(get_current_username)):
         "connections": _get_connection_counts(),
         "public_ips": dict(zip(("ipv4", "ipv6"), get_public_ips()))
     }
+
+
+# global storage for V2ray speed tracking
+v2ray_prev_bytes = {} # {email: {"up": int, "down": int, "time": float}}
+v2ray_lock = threading.Lock()
+
+@app.get("/api/v2ray/users")
+async def get_v2ray_users(username: str = Depends(get_current_username)):
+    """Query /etc/x-ui/x-ui.db and compute real-time download/upload speeds for each client."""
+    import sqlite3
+    import time
+    
+    db_path = "/etc/x-ui/x-ui.db"
+    if not os.path.exists(db_path):
+        return {"error": "X-UI database not found at /etc/x-ui/x-ui.db"}
+        
+    try:
+        # Connect in read-only mode to prevent lockouts
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        cursor = conn.cursor()
+        
+        # Check if table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='client_traffics';")
+        if not cursor.fetchone():
+            conn.close()
+            return {"error": "client_traffics table not found in x-ui.db"}
+            
+        cursor.execute("SELECT email, up, down, last_online, expiry_time, total, enable FROM client_traffics;")
+        rows = cursor.fetchall()
+        conn.close()
+    except Exception as e:
+        return {"error": f"Failed to query X-UI database: {str(e)}"}
+        
+    current_time = time.time()
+    results = []
+    
+    global v2ray_prev_bytes
+    with v2ray_lock:
+        for row in rows:
+            email, up, down, last_online, expiry_time, total, enable = row
+            if not email:
+                continue
+                
+            prev = v2ray_prev_bytes.get(email)
+            if prev:
+                prev_up = prev["up"]
+                prev_down = prev["down"]
+                prev_time = prev["time"]
+                
+                elapsed = current_time - prev_time
+                if elapsed <= 0:
+                    elapsed = 1.0
+                    
+                # Compute speed in Mbps: (delta_bytes * 8 bits) / (elapsed_seconds * 1,048,576 bits/Mb)
+                down_speed = max(0.0, (down - prev_down) * 8 / (elapsed * 1024 * 1024))
+                up_speed = max(0.0, (up - prev_up) * 8 / (elapsed * 1024 * 1024))
+            else:
+                down_speed = 0.0
+                up_speed = 0.0
+                
+            # Update cache
+            v2ray_prev_bytes[email] = {
+                "up": up,
+                "down": down,
+                "time": current_time
+            }
+            
+            # 5-minute activity check
+            is_online = False
+            if last_online:
+                time_diff = current_time - (last_online / 1000.0)
+                if time_diff < 300: # 5 minutes
+                    is_online = True
+                    
+            results.append({
+                "email": email,
+                "down_speed_mbps": round(down_speed, 3),
+                "up_speed_mbps": round(up_speed, 3),
+                "total_down_gb": round(down / (1024 ** 3), 3),
+                "total_up_gb": round(up / (1024 ** 3), 3),
+                "last_online": last_online,
+                "is_online": is_online,
+                "enable": bool(enable),
+                "total_limit_gb": round(total / (1024 ** 3), 2) if total else 0.0,
+                "expiry_time": expiry_time
+            })
+            
+    # Sort descending by download speed
+    results.sort(key=lambda x: x["down_speed_mbps"], reverse=True)
+    return results
+
 
 
 # Time range mapping: range_key -> (total_seconds, aggregate_bucket_seconds)

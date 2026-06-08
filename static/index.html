@@ -81,6 +81,13 @@
                         </svg>
                         Reinstall
                     </button>
+                    <button class="v2ray-btn" id="btnV2rayOpen" title="V2ray Monitor">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
+                            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                        </svg>
+                        V2ray
+                    </button>
                     <button class="settings-btn" id="btnSettingsOpen" title="Panel Settings" style="display: none;">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -777,6 +784,49 @@
         <footer class="footer">
             <p>Server Monitor Dashboard <span id="panelVersion">v1.0.0</span> &copy; 2026 By morezaGeek</p>
         </footer>
+    </div>
+
+    <!-- V2ray Monitor Overlay -->
+    <div id="v2rayOverlay" class="login-overlay hidden">
+        <div class="login-box v2ray-modal-box">
+            <button id="closeV2ray" class="btn-close-overlay">×</button>
+            <div class="login-header" style="margin-bottom: 20px;">
+                <h2 style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #6366f1;">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                    </svg>
+                    V2ray User Bandwidth Monitor
+                </h2>
+                <p>Real-time traffic accounting and speed tracking</p>
+            </div>
+            
+            <div class="v2ray-controls" style="display: flex; gap: 15px; margin-bottom: 20px; align-items: center;">
+                <input type="text" id="v2raySearch" placeholder="Search users by email..." style="flex: 1; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(0,0,0,0.2); color: var(--text-primary); font-size: 0.9rem; outline: none; transition: border-color 0.2s;">
+                <div class="v2ray-stats" style="font-size: 0.9rem; color: var(--text-secondary); background: var(--bg-card); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color); white-space: nowrap;">
+                    Online: <span id="v2rayActiveCount" style="color: #10b981; font-weight: bold;">0</span> / Total: <span id="v2rayTotalCount" style="font-weight: bold;">0</span>
+                </div>
+            </div>
+            
+            <div class="process-table-container" style="max-height: 480px; overflow-y: auto; border-radius: 8px; border: 1px solid var(--border-color);">
+                <table class="process-table" id="v2rayTable">
+                    <thead>
+                        <tr>
+                            <th style="position: sticky; top: 0; background: var(--bg-card); z-index: 1;">User (Email)</th>
+                            <th style="position: sticky; top: 0; background: var(--bg-card); z-index: 1; text-align: right;">Download Speed</th>
+                            <th style="position: sticky; top: 0; background: var(--bg-card); z-index: 1; text-align: right;">Upload Speed</th>
+                            <th style="position: sticky; top: 0; background: var(--bg-card); z-index: 1; text-align: right;">Total Down</th>
+                            <th style="position: sticky; top: 0; background: var(--bg-card); z-index: 1; text-align: right;">Total Up</th>
+                            <th style="position: sticky; top: 0; background: var(--bg-card); z-index: 1; text-align: center;">Last Active</th>
+                        </tr>
+                    </thead>
+                    <tbody id="v2rayTableBody">
+                        <tr>
+                            <td colspan="6" style="text-align: center; padding: 30px; color: var(--text-secondary);">Loading V2ray users...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <!-- Settings Overlay -->

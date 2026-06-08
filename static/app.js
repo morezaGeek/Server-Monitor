@@ -2008,6 +2008,158 @@
         });
     }
 
+    function setupV2rayMonitor() {
+        const btnOpen = document.getElementById('btnV2rayOpen');
+        const overlay = document.getElementById('v2rayOverlay');
+        const btnClose = document.getElementById('closeV2ray');
+        const searchInput = document.getElementById('v2raySearch');
+        const tableBody = document.getElementById('v2rayTableBody');
+        const activeCountSpan = document.getElementById('v2rayActiveCount');
+        const totalCountSpan = document.getElementById('v2rayTotalCount');
+
+        if (!btnOpen || !overlay) return;
+
+        let pollInterval = null;
+        let cachedUsers = [];
+
+        // Open
+        btnOpen.addEventListener('click', () => {
+            overlay.classList.remove('hidden');
+            fetchV2rayUsers();
+            // Start polling every 2000ms
+            if (!pollInterval) {
+                pollInterval = setInterval(fetchV2rayUsers, 2000);
+            }
+        });
+
+        // Close
+        function closeOverlay() {
+            overlay.classList.add('hidden');
+            if (pollInterval) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+            }
+        }
+
+        btnClose.addEventListener('click', closeOverlay);
+
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                closeOverlay();
+            }
+        });
+
+        // Search Filter
+        searchInput.addEventListener('input', () => {
+            renderTable();
+        });
+
+        async function fetchV2rayUsers() {
+            try {
+                const res = await fetch("/api/v2ray/users");
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.error) {
+                        tableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #ef4444; padding: 20px;">${data.error}</td></tr>`;
+                        return;
+                    }
+                    cachedUsers = data;
+                    renderTable();
+                } else {
+                    console.error("Failed to fetch V2ray users: " + res.statusText);
+                }
+            } catch (err) {
+                console.error("Error fetching V2ray users:", err);
+            }
+        }
+
+        function formatSpeed(mbps) {
+            if (mbps >= 1.0) {
+                return `${mbps.toFixed(2)} Mbps`;
+            } else {
+                return `${(mbps * 1024).toFixed(0)} Kbps`;
+            }
+        }
+
+        function formatTraffic(gb) {
+            if (gb >= 1.0) {
+                return `${gb.toFixed(2)} GB`;
+            } else {
+                return `${(gb * 1024).toFixed(1)} MB`;
+            }
+        }
+
+        function formatLastActive(lastOnline) {
+            if (!lastOnline) return '<span style="color: var(--text-secondary);">Never</span>';
+            const date = new Date(lastOnline);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+
+            if (diffMins < 1) return '<span style="color: #10b981; font-weight: bold;">Just now</span>';
+            if (diffMins < 60) return `${diffMins}m ago`;
+            const diffHours = Math.floor(diffMins / 60);
+            if (diffHours < 24) return `${diffHours}h ago`;
+            return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function renderTable() {
+            const query = searchInput.value.toLowerCase().trim();
+            
+            // Filter users
+            const filtered = cachedUsers.filter(u => {
+                return u.email && u.email.toLowerCase().includes(query);
+            });
+
+            // Sort by download speed descending, then upload speed
+            filtered.sort((a, b) => b.down_speed_mbps - a.down_speed_mbps || b.up_speed_mbps - a.up_speed_mbps);
+
+            // Update stats
+            const onlineCount = cachedUsers.filter(u => u.is_online).length;
+            activeCountSpan.textContent = onlineCount;
+            totalCountSpan.textContent = cachedUsers.length;
+
+            if (filtered.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-secondary); padding: 30px;">No users found</td></tr>`;
+                return;
+            }
+
+            tableBody.innerHTML = filtered.map(u => {
+                const isOnline = u.is_online;
+                const statusDot = isOnline 
+                    ? '<span class="pulse-dot" style="display: inline-block; margin-right: 8px; vertical-align: middle;"></span>' 
+                    : '<span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #ef4444; margin-right: 8px; vertical-align: middle;"></span>';
+                
+                const speedDownText = formatSpeed(u.down_speed_mbps);
+                const speedUpText = formatSpeed(u.up_speed_mbps);
+                
+                // Highlight active speeds
+                const speedDownStyle = u.down_speed_mbps > 0.05 ? 'color: #10b981; font-weight: bold;' : '';
+                const speedUpStyle = u.up_speed_mbps > 0.05 ? 'color: #3b82f6; font-weight: bold;' : '';
+
+                // Limit display: if total_limit_gb is 0.0, it means unlimited
+                const limitText = u.total_limit_gb > 0 ? ` / ${u.total_limit_gb} GB` : '';
+                const totalDownText = formatTraffic(u.total_down_gb);
+                const totalUpText = formatTraffic(u.total_up_gb);
+
+                return `
+                    <tr style="${!u.enable ? 'opacity: 0.5;' : ''}">
+                        <td style="display: flex; align-items: center; font-weight: 500;">
+                            ${statusDot}
+                            <span>${u.email}</span>
+                            ${!u.enable ? ' <span style="font-size: 0.75rem; color: #ef4444; background: rgba(239, 68, 68, 0.1); padding: 2px 6px; border-radius: 4px; margin-left: 8px;">Disabled</span>' : ''}
+                        </td>
+                        <td style="text-align: right; ${speedDownStyle}">${speedDownText}</td>
+                        <td style="text-align: right; ${speedUpStyle}">${speedUpText}</td>
+                        <td style="text-align: right;">${totalDownText}${limitText}</td>
+                        <td style="text-align: right;">${totalUpText}</td>
+                        <td style="text-align: center; font-size: 0.85rem;">${formatLastActive(u.last_online)}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+    }
+
     function setupVirtualBrowser() {
         const btnManage = document.getElementById('btnManageBrowser');
         const overlay = document.getElementById('browserOverlay');
@@ -2337,6 +2489,7 @@
         setupBenchmark();
         setupSettings();
         setupVirtualBrowser();
+        setupV2rayMonitor();
         setupSelfUpdate();
 
         // Fetch interfaces first, then initial data + start timers
