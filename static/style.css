@@ -750,8 +750,8 @@
 
 /* V2ray overlay modal box */
 .v2ray-modal-box {
-    max-width: 850px !important;
-    width: 90%;
+    max-width: 960px !important;
+    width: 95%;
     padding: 30px;
 }
 
