@@ -28,9 +28,11 @@
             up: bodyStyle.getPropertyValue("--cpu-start").trim() || "#818cf8",
             downGlow: "rgba(16, 185, 129, 0.15)",
             upGlow: "rgba(129, 140, 248, 0.15)",
-            // Brighter colors for bar chart in dark mode
+            // Brighter colors for cumulative chart
             barDown: isDark ? "#34d399" : (bodyStyle.getPropertyValue("--net-start").trim() || "#10b981"),
             barUp: isDark ? "#a5b4fc" : (bodyStyle.getPropertyValue("--cpu-start").trim() || "#818cf8"),
+            barDownGlow: isDark ? "rgba(52, 211, 153, 0.2)" : "rgba(16, 185, 129, 0.15)",
+            barUpGlow: isDark ? "rgba(165, 180, 252, 0.2)" : "rgba(129, 140, 248, 0.15)",
         };
     }
 
@@ -50,6 +52,35 @@
     function getActiveQueryTarget() {
         if (activeService === "google") return activeSubService;
         return activeService;
+    }
+
+    // ── Smoothing ───────────────────────────────────────────────────────────
+
+    function getServiceSmoothWindow() {
+        const el = document.getElementById("serviceSmoothLevel");
+        return el ? (parseInt(el.value, 10) || 0) : 0;
+    }
+
+    /**
+     * Apply a simple centered moving average to an array of {x, y} points.
+     * Returns a new array with smoothed y values; x values are preserved.
+     * window=0 means no smoothing (returns original data).
+     */
+    function movingAverage(data, window) {
+        if (!window || window < 2 || data.length < window) return data;
+        const half = Math.floor(window / 2);
+        return data.map((point, i) => {
+            if (point.y === null || point.y === undefined) return point;
+            let sum = 0;
+            let count = 0;
+            for (let j = Math.max(0, i - half); j <= Math.min(data.length - 1, i + half); j++) {
+                if (data[j].y !== null && data[j].y !== undefined) {
+                    sum += parseFloat(data[j].y);
+                    count++;
+                }
+            }
+            return { x: point.x, y: count > 0 ? sum / count : point.y };
+        });
     }
 
     // ── Range Helpers ────────────────────────────────────────────────────────
@@ -155,25 +186,40 @@
             });
         }
 
-        // Payload Bar Chart
+        // Cumulative Payload Line Chart (area chart)
         const ctxP = document.getElementById("servicePayloadChart");
         if (ctxP) {
             payloadChart = new Chart(ctxP, {
-                type: "bar",
+                type: "line",
                 data: {
                     datasets: [
-                        { label: "Download", backgroundColor: colors.barDown, borderRadius: 0, barPercentage: 1.0, categoryPercentage: 1.0, data: [] },
-                        { label: "Upload", backgroundColor: colors.barUp, borderRadius: 0, barPercentage: 1.0, categoryPercentage: 1.0, data: [] }
+                        {
+                            label: "Download",
+                            borderColor: colors.barDown, backgroundColor: colors.barDownGlow,
+                            borderWidth: 2, pointRadius: 0, pointHoverRadius: 5,
+                            fill: true, tension: 0.3, data: []
+                        },
+                        {
+                            label: "Upload",
+                            borderColor: colors.barUp, backgroundColor: colors.barUpGlow,
+                            borderWidth: 2, pointRadius: 0, pointHoverRadius: 5,
+                            fill: true, tension: 0.3, data: []
+                        }
                     ]
                 },
                 options: {
                     responsive: true, maintainAspectRatio: false,
+                    animation: false,
                     plugins: {
                         legend: { display: true, labels: { color: colors.text, font: { family: "Outfit, Inter, sans-serif", size: 11 } } },
                         tooltip: {
                             mode: "index", intersect: false, backgroundColor: "rgba(15, 23, 42, 0.9)",
                             callbacks: {
-                                label: ctx => { const v = ctx.raw.y * 1024 * 1024; return ctx.dataset.label + ": " + formatBytes(v); }
+                                label: ctx => {
+                                    const mb = ctx.parsed.y;
+                                    if (mb >= 1024) return ctx.dataset.label + ": " + (mb / 1024).toFixed(2) + " GB";
+                                    return ctx.dataset.label + ": " + mb.toFixed(1) + " MB";
+                                }
                             }
                         }
                     },
@@ -182,13 +228,12 @@
                             type: "time",
                             time: { displayFormats: { second: "HH:mm:ss", minute: "HH:mm", hour: "HH:mm", day: "MMM d", month: "MMM yyyy" } },
                             grid: { display: false },
-                            ticks: { color: colors.muted, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 },
-                            stacked: true
+                            ticks: { color: colors.muted, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 }
                         },
                         y: {
                             grid: { color: colors.grid }, border: { dash: [4, 4] },
                             ticks: { color: colors.muted, callback: v => v >= 1024 ? (v / 1024).toFixed(1) + " GB" : v.toFixed(0) + " MB" },
-                            stacked: true, min: 0
+                            min: 0
                         }
                     }
                 }
@@ -204,6 +249,7 @@
         const timeUnit = getTimeUnit(rangeSeconds);
         const now = new Date();
         const minTime = new Date(now.getTime() - rangeSeconds * 1000);
+        const sw = getServiceSmoothWindow();
 
         // ── 1. Throughput Line Chart ──
         if (throughputChart) {
@@ -212,8 +258,10 @@
             throughputChart.data.datasets[1].borderColor = colors.up;
             throughputChart.data.datasets[1].backgroundColor = colors.upGlow;
 
-            throughputChart.data.datasets[0].data = realTimeHistory.map(pt => ({ x: pt.t, y: pt.down }));
-            throughputChart.data.datasets[1].data = realTimeHistory.map(pt => ({ x: pt.t, y: pt.up }));
+            const downData = realTimeHistory.map(pt => ({ x: pt.t, y: pt.down }));
+            const upData = realTimeHistory.map(pt => ({ x: pt.t, y: pt.up }));
+            throughputChart.data.datasets[0].data = movingAverage(downData, sw);
+            throughputChart.data.datasets[1].data = movingAverage(upData, sw);
 
             throughputChart.options.scales.x.min = minTime;
             throughputChart.options.scales.x.max = now;
@@ -221,24 +269,36 @@
             throughputChart.update("none");
         }
 
-        // ── 2. Payload Bar Chart ──
+        // ── 2. Cumulative Payload Line Chart ──
         if (payloadChart) {
             const serviceHist = historicalData.filter(d => d.service === target);
 
-            payloadChart.data.datasets[0].backgroundColor = colors.barDown;
-            payloadChart.data.datasets[1].backgroundColor = colors.barUp;
+            payloadChart.data.datasets[0].borderColor = colors.barDown;
+            payloadChart.data.datasets[0].backgroundColor = colors.barDownGlow;
+            payloadChart.data.datasets[1].borderColor = colors.barUp;
+            payloadChart.data.datasets[1].backgroundColor = colors.barUpGlow;
 
-            payloadChart.data.datasets[0].data = serviceHist.map(d => ({ x: new Date(d.t * 1000), y: d.down / (1024 * 1024) }));
-            payloadChart.data.datasets[1].data = serviceHist.map(d => ({ x: new Date(d.t * 1000), y: d.up / (1024 * 1024) }));
+            // Build cumulative sums
+            let cumDown = 0, cumUp = 0;
+            const cumDownData = [];
+            const cumUpData = [];
+            serviceHist.forEach(d => {
+                cumDown += d.down;
+                cumUp += d.up;
+                const t = new Date(d.t * 1000);
+                cumDownData.push({ x: t, y: cumDown / (1024 * 1024) });
+                cumUpData.push({ x: t, y: cumUp / (1024 * 1024) });
+            });
+
+            payloadChart.data.datasets[0].data = movingAverage(cumDownData, sw);
+            payloadChart.data.datasets[1].data = movingAverage(cumUpData, sw);
 
             // Accumulated payload card
-            let totalDown = 0, totalUp = 0;
-            serviceHist.forEach(d => { totalDown += d.down; totalUp += d.up; });
             const payloadEl = document.getElementById("serviceTotalPayload");
-            if (payloadEl) payloadEl.innerText = formatBytes(totalDown + totalUp);
+            if (payloadEl) payloadEl.innerText = formatBytes(cumDown + cumUp);
 
             payloadChart.options.scales.x.time.unit = timeUnit;
-            payloadChart.update();
+            payloadChart.update("none");
         }
     }
 
@@ -318,10 +378,14 @@
                 const cutoff = new Date(now.getTime() - rangeSeconds * 1000);
                 realTimeHistory = realTimeHistory.filter(pt => pt.t >= cutoff);
 
+                const sw = getServiceSmoothWindow();
+
                 // Update throughput chart in-place (fast, no animation)
                 if (throughputChart) {
-                    throughputChart.data.datasets[0].data = realTimeHistory.map(pt => ({ x: pt.t, y: pt.down }));
-                    throughputChart.data.datasets[1].data = realTimeHistory.map(pt => ({ x: pt.t, y: pt.up }));
+                    const downData = realTimeHistory.map(pt => ({ x: pt.t, y: pt.down }));
+                    const upData = realTimeHistory.map(pt => ({ x: pt.t, y: pt.up }));
+                    throughputChart.data.datasets[0].data = movingAverage(downData, sw);
+                    throughputChart.data.datasets[1].data = movingAverage(upData, sw);
                     const minTime = new Date(now.getTime() - rangeSeconds * 1000);
                     throughputChart.options.scales.x.min = minTime;
                     throughputChart.options.scales.x.max = now;
@@ -407,6 +471,19 @@
             applyBtn.addEventListener("click", () => { loadHistoricalMetrics(); });
         }
 
+        // Smooth control — re-render charts when changed
+        const smoothSelect = document.getElementById("serviceSmoothLevel");
+        if (smoothSelect) {
+            // Restore saved preference
+            const saved = localStorage.getItem("serviceSmoothLevel");
+            if (saved !== null) smoothSelect.value = saved;
+
+            smoothSelect.addEventListener("change", () => {
+                localStorage.setItem("serviceSmoothLevel", smoothSelect.value);
+                updateChartsForTarget();
+            });
+        }
+
         // Theme swap observer
         const observer = new MutationObserver(() => {
             if (throughputChart && payloadChart) {
@@ -424,8 +501,10 @@
                 payloadChart.options.scales.y.ticks.color = colors.muted;
                 payloadChart.options.scales.y.grid.color = colors.grid;
                 payloadChart.options.plugins.legend.labels.color = colors.text;
-                payloadChart.data.datasets[0].backgroundColor = colors.barDown;
-                payloadChart.data.datasets[1].backgroundColor = colors.barUp;
+                payloadChart.data.datasets[0].borderColor = colors.barDown;
+                payloadChart.data.datasets[0].backgroundColor = colors.barDownGlow;
+                payloadChart.data.datasets[1].borderColor = colors.barUp;
+                payloadChart.data.datasets[1].backgroundColor = colors.barUpGlow;
 
                 updateChartsForTarget();
             }

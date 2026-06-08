@@ -627,7 +627,27 @@ class ServiceTrafficCollector:
                 "telegram.space", "telegram.com", "cdn-telegram.org", "telegram-cdn.org",
                 "fragment.com", "graph.org", "telegra.ph", "telega.one"
             ],
-
+            "twitter": [
+                "twitter.com", "twimg.com", "t.co", "x.com", "twitter.co", "twitter.net"
+            ],
+            "tiktok": [
+                "tiktok.com", "tiktokv.com", "tiktokcdn.com", "byteoversea.com", 
+                "ibytedtos.com", "ibyteimg.com", "tiktokcdn-us.com"
+            ],
+            "discord": [
+                "discord.com", "discordapp.com", "discordapp.net", "discord.gg", "discord.media"
+            ],
+            "microsoft": [
+                "microsoft.com", "windowsupdate.com", "live.com", "office.com", "skype.com", 
+                "bing.com", "github.com", "microsoftonline.com", "azure.com"
+            ],
+            "steam": [
+                "steampowered.com", "steamcommunity.com", "steamgames.com", 
+                "steamusercontent.com", "steamcontent.com", "steamstatic.com"
+            ],
+            "snapchat": [
+                "snapchat.com", "snap.com", "sc-cdn.net", "snap-dev.net"
+            ]
         }
 
         # Try to parse and extract domains from geosite.dat if available
@@ -676,6 +696,13 @@ class ServiceTrafficCollector:
         openai = get_geosite_domains(["OPENAI"], fallback_domains["openai"])
         spotify = get_geosite_domains(["SPOTIFY"], fallback_domains["spotify"])
         telegram = get_geosite_domains(["TELEGRAM"], fallback_domains["telegram"])
+        # New services
+        twitter = get_geosite_domains(["TWITTER"], fallback_domains["twitter"])
+        tiktok = get_geosite_domains(["TIKTOK"], fallback_domains["tiktok"])
+        discord = get_geosite_domains(["DISCORD"], fallback_domains["discord"])
+        microsoft = get_geosite_domains(["MICROSOFT", "GITHUB"], fallback_domains["microsoft"])
+        steam = get_geosite_domains(["STEAM"], fallback_domains["steam"])
+        snapchat = get_geosite_domains(["SNAPCHAT"], fallback_domains["snapchat"])
 
         services_domains = {
             "apple": apple_domains,
@@ -686,7 +713,13 @@ class ServiceTrafficCollector:
             "google_ai": google_ai,
             "openai": openai,
             "spotify": spotify,
-            "telegram": telegram
+            "telegram": telegram,
+            "twitter": twitter,
+            "tiktok": tiktok,
+            "discord": discord,
+            "microsoft": microsoft,
+            "steam": steam,
+            "snapchat": snapchat
         }
 
         # 2. Clean up old rules with comment "service_" or matching "5353" from filter and nat tables first
@@ -742,6 +775,29 @@ class ServiceTrafficCollector:
             print(f"Added {len(google_cidrs)} Google IPv4 CIDRs to ipset.")
         except Exception as e:
             print(f"Failed to fetch Google IPs: {e}")
+
+        # 4.5.5 Add Microsoft IP ranges to ipset_microsoft (bypasses DNS interception limitations)
+        try:
+            import urllib.request, json
+            microsoft_cidrs = []
+            for asn in ["AS8075", "AS8068", "AS8069"]:
+                url = f"https://stat.ripe.net/data/announced-prefixes/data.json?resource={asn}"
+                try:
+                    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                    with urllib.request.urlopen(req, timeout=8) as response:
+                        res_data = json.loads(response.read().decode())
+                        prefixes = [p['prefix'] for p in res_data.get('data', {}).get('prefixes', []) if 'prefix' in p and ':' not in p['prefix']]
+                        microsoft_cidrs.extend(prefixes)
+                except Exception as asn_err:
+                    print(f"Failed to fetch {asn} IPs: {asn_err}")
+            
+            microsoft_cidrs = list(set(microsoft_cidrs))
+            for cidr in microsoft_cidrs:
+                subprocess.run(["ipset", "add", "ipset_microsoft", cidr], stderr=subprocess.DEVNULL)
+            print(f"Added {len(microsoft_cidrs)} Microsoft IPv4 CIDRs to ipset.")
+        except Exception as e:
+            print(f"Failed to populate Microsoft IPs: {e}")
+
 
         # 4.6 Parse Xray config and dynamically seed outbound proxy IPs to ipsets (for tunnel traffic accounting)
         try:
