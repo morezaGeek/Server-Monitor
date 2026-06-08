@@ -1606,11 +1606,25 @@ def _v2ray_background_reader():
             continue
 
         try:
+            import tempfile, shutil
+            temp_db = os.path.join(tempfile.gettempdir(), "xui_monitor_copy.db")
+            try:
+                shutil.copy2(db_path, temp_db)
+            except Exception:
+                _time.sleep(10)
+                continue
+
             proc = _sp.run(
-                ["sqlite3", "-separator", "|", db_path,
+                ["sqlite3", "-separator", "|", temp_db,
                  "SELECT email, up, down, last_online, expiry_time, total, enable FROM client_traffics;"],
                 capture_output=True, text=True, timeout=5
             )
+            
+            try:
+                os.remove(temp_db)
+            except Exception:
+                pass
+
             if proc.returncode != 0:
                 _time.sleep(10)
                 continue
