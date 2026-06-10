@@ -438,51 +438,6 @@
                 </div>
             </div>
 
-            <div class="chart-card chart-card-disk">
-                <div class="chart-header">
-                    <h3>Disk Usage & Speed</h3>
-                    <div class="chart-header-controls">
-                        <span class="chart-badge chart-badge-disk" id="diskAvgBadge">Avg: —%</span>
-                        <button class="btn-fullscreen" title="Toggle Fullscreen">
-                            <svg class="icon-expand" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-                            </svg>
-                            <svg class="icon-compress" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                                style="display:none;">
-                                <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7" />
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-                <div class="chart-wrapper">
-                    <canvas id="diskChart"></canvas>
-                </div>
-            </div>
-
-            <div class="chart-card chart-card-iops">
-                <div class="chart-header">
-                    <h3>Disk IOPS</h3>
-                    <div class="chart-header-controls">
-                        <button class="btn-fullscreen" title="Toggle Fullscreen">
-                            <svg class="icon-expand" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-                            </svg>
-                            <svg class="icon-compress" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                                style="display:none;">
-                                <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7" />
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-                <div class="chart-wrapper">
-                    <canvas id="diskIopsChart"></canvas>
-                </div>
-            </div>
-
             <div class="chart-card chart-card-net">
                 <div class="chart-header">
                     <h3>Network I/O</h3>
@@ -534,6 +489,51 @@
                 </div>
                 <div class="chart-wrapper">
                     <canvas id="connChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card chart-card-disk">
+                <div class="chart-header">
+                    <h3>Disk Usage & Speed</h3>
+                    <div class="chart-header-controls">
+                        <span class="chart-badge chart-badge-disk" id="diskAvgBadge">Avg: —%</span>
+                        <button class="btn-fullscreen" title="Toggle Fullscreen">
+                            <svg class="icon-expand" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                            </svg>
+                            <svg class="icon-compress" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                style="display:none;">
+                                <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="diskChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card chart-card-iops">
+                <div class="chart-header">
+                    <h3>Disk IOPS</h3>
+                    <div class="chart-header-controls">
+                        <button class="btn-fullscreen" title="Toggle Fullscreen">
+                            <svg class="icon-expand" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                            </svg>
+                            <svg class="icon-compress" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                style="display:none;">
+                                <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="diskIopsChart"></canvas>
                 </div>
             </div>
 

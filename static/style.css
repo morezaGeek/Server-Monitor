@@ -2824,7 +2824,7 @@ body {
 
 /* === Service Traffic Analyzer Custom Styles === */
 .full-width-card {
-    grid-column: span 2;
+    grid-column: 1 / -1;
 }
 
 .service-header-title h3 {
