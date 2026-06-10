@@ -1424,23 +1424,24 @@ async def update_panel(skip_git: bool = Query(False), username: str = Depends(ge
         
     try:
         # Launch detached via systemd-run so it survives the panel service stop/restart
-        # We use a unique transient unit name to avoid unit conflicts
         unit_name = f"server-monitor-update-{int(time.time())}"
         
         env_vars = []
         if skip_git:
             env_vars = ["--setenv=SKIP_GIT=true"]
             
-        cmd = [
-            "systemd-run",
-            f"--unit={unit_name}",
-            "--description=Server Monitor Self Update",
-            "--remain-after-exit=no"
-        ] + env_vars + [
-            "bash", install_script
-        ]
+        if skip_git:
+            cmd = [
+                "systemd-run", f"--unit={unit_name}", "--description=Server Monitor Self Update", "--remain-after-exit=no"
+            ] + env_vars + ["bash", install_script]
+        else:
+            # Download and run the absolute latest installer to avoid bugs in older local scripts
+            cmd_str = f"curl -sL https://raw.githubusercontent.com/morezaGeek/Server-Monitor/main/install.sh | bash"
+            cmd = [
+                "systemd-run", f"--unit={unit_name}", "--description=Server Monitor Self Update", "--remain-after-exit=no",
+                "bash", "-c", cmd_str
+            ]
         
-        # Popen starts it asynchronously and returns immediately
         subprocess.Popen(cmd)
         return {"status": "success", "message": "Update started in background. The panel will restart in a few seconds."}
     except Exception as e:
