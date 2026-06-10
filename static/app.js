@@ -6,7 +6,7 @@
     "use strict";
 
     // ─── Config ──────────────────────────────────────────────────────────────
-    const STATS_INTERVAL = 1_000;   // live stats every 1 second
+    let STATS_INTERVAL = parseInt(localStorage.getItem('uiRefreshInterval')) * 1000 || 3000;
     const CHART_INTERVAL = 30_000;  // charts every 30 seconds
     const CIRCUMFERENCE = 2 * Math.PI * 52; // gauge circle circumference
 
@@ -1400,8 +1400,37 @@
         }
     }
 
+    function setupGlobalRefreshInterval() {
+        const select = document.getElementById("globalRefreshSelect");
+        if (select) {
+            select.value = (STATS_INTERVAL / 1000).toString();
+            
+            // Sync with backend on startup
+            fetch(`/api/settings/interval?seconds=${select.value}`, { method: 'POST' }).catch(e => console.error(e));
+
+            select.addEventListener("change", (e) => {
+                const val = parseInt(e.target.value, 10);
+                if (val) {
+                    localStorage.setItem('uiRefreshInterval', val);
+                    STATS_INTERVAL = val * 1000;
+                    
+                    fetch(`/api/settings/interval?seconds=${val}`, { method: 'POST' }).catch(e => console.error(e));
+
+                    if (statsTimer) {
+                        clearInterval(statsTimer);
+                        fetchCurrent();
+                        statsTimer = setInterval(fetchCurrent, STATS_INTERVAL);
+                    }
+                    
+                    window.dispatchEvent(new CustomEvent('globalRefreshChanged', { detail: STATS_INTERVAL }));
+                }
+            });
+        }
+    }
+
     function startAutoRefresh() {
-        // Live stats every 1 second
+        setupGlobalRefreshInterval();
+        // Live stats every X seconds
         statsTimer = setInterval(fetchCurrent, STATS_INTERVAL);
         // Charts every 30 seconds
         chartTimer = setInterval(fetchMetrics, CHART_INTERVAL);

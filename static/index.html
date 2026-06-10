@@ -98,6 +98,19 @@
                         </svg>
                         Settings
                     </button>
+                    <div class="refresh-dropdown-container" style="display: flex; align-items: center; margin-right: 15px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-muted); margin-right: 5px;">
+                            <polyline points="23 4 23 10 17 10"></polyline>
+                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                        </svg>
+                        <select id="globalRefreshSelect" class="iface-select" title="Auto Refresh Interval" style="height: 28px; padding: 0 8px; border-radius: 6px; font-size: 0.85rem;">
+                            <option value="1">1s</option>
+                            <option value="3" selected>3s</option>
+                            <option value="5">5s</option>
+                            <option value="10">10s</option>
+                            <option value="20">20s</option>
+                        </select>
+                    </div>
                     <div class="theme-dropdown-container" id="themeDropdownContainer">
                         <button class="theme-dropdown-btn" id="themeDropdownBtn" title="Select Theme"
                             aria-haspopup="listbox" aria-expanded="false">
@@ -1122,8 +1135,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script
         src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-    <script src="/static/app.js?v=1.0.21"></script>
-    <script src="/static/service_analyzer.js?v=1.0.21"></script>
+    <script src="/static/app.js?v=1.0.22"></script>
+    <script src="/static/service_analyzer.js?v=1.0.22"></script>
 </body>
 
 </html>

@@ -43,7 +43,8 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metrics.db")
 COLLECT_INTERVAL = 30  # seconds
 RETENTION_DAYS = 31
 PORT = 8080
-VERSION = "1.0.21"
+VERSION = "1.0.22"
+UI_REFRESH_INTERVAL = 3
 
 # ─── X-UI Dynamic Paths ──────────────────────────────────────────────────────
 class XUIPaths:
@@ -591,11 +592,12 @@ class ServiceTrafficCollector:
         db_insert_counter = 0
         while self._running:
             try:
-                self._collect(insert_to_db=(db_insert_counter % 10 == 0))
+                threshold = max(1, int(30 / UI_REFRESH_INTERVAL))
+                self._collect(insert_to_db=(db_insert_counter % threshold == 0))
                 db_insert_counter += 1
             except Exception as e:
                 print(f"[ServiceCollector Error] {e}")
-            time.sleep(3)
+            time.sleep(UI_REFRESH_INTERVAL)
 
     def _initialize_network_rules(self):
         import subprocess
@@ -1795,6 +1797,14 @@ def get_v2ray_users(username: str = Depends(get_current_username)):
     that reads via sqlite3 CLI — no direct Python connection to the X-UI database."""
     with v2ray_lock:
         return list(v2ray_cached_results)
+
+@app.post("/api/settings/interval")
+def set_refresh_interval(seconds: int = Query(3), username: str = Depends(get_current_username)):
+    global UI_REFRESH_INTERVAL
+    if seconds in [1, 3, 5, 10, 20]:
+        UI_REFRESH_INTERVAL = seconds
+        return {"status": "ok", "interval": seconds}
+    raise HTTPException(status_code=400, detail="Invalid interval")
 
 
 

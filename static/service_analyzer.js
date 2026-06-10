@@ -398,7 +398,14 @@
         }
 
         pollSpeeds(); // Initial poll immediately
-        speedPollId = setInterval(pollSpeeds, 1000);
+        let pollIntervalMs = parseInt(localStorage.getItem('uiRefreshInterval')) * 1000 || 3000;
+        speedPollId = setInterval(pollSpeeds, pollIntervalMs);
+        
+        window.addEventListener('globalRefreshChanged', (e) => {
+            pollIntervalMs = e.detail;
+            clearInterval(speedPollId);
+            speedPollId = setInterval(pollSpeeds, pollIntervalMs);
+        });
 
         // 20-second poll for full chart data from DB
         chartPollId = setInterval(() => { loadHistoricalMetrics(); }, 20000);
