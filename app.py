@@ -43,7 +43,7 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metrics.db")
 COLLECT_INTERVAL = 30  # seconds
 RETENTION_DAYS = 31
 PORT = 8080
-VERSION = "1.0.19"
+VERSION = "1.0.20"
 
 # ─── X-UI Dynamic Paths ──────────────────────────────────────────────────────
 class XUIPaths:
@@ -588,14 +588,12 @@ class ServiceTrafficCollector:
         self._running = False
 
     def _run(self):
-        db_insert_counter = 0
         while self._running:
             try:
-                self._collect(insert_to_db=(db_insert_counter % 10 == 0))
-                db_insert_counter += 1
+                self._collect(insert_to_db=True)
             except Exception as e:
                 print(f"[ServiceCollector Error] {e}")
-            time.sleep(1)
+            time.sleep(10)
 
     def _initialize_network_rules(self):
         import subprocess
