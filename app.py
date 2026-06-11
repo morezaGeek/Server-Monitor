@@ -1322,6 +1322,68 @@ async def stop_benchmark_cpu(username: str = Depends(get_current_username)):
     return {"status": "stopped"}
 
 
+# ─── Speedtest Endpoints ───────────────────────────────────────────
+
+import speedtest
+
+@app.get("/api/speedtest/servers")
+async def get_speedtest_servers(username: str = Depends(get_current_username)):
+    def run_get_servers():
+        try:
+            s = speedtest.Speedtest()
+            servers = s.get_servers()
+            flat_servers = []
+            for d in sorted(servers.keys()):
+                for srv in servers[d]:
+                    flat_servers.append({
+                        "id": srv["id"],
+                        "sponsor": srv["sponsor"],
+                        "name": srv["name"],
+                        "country": srv["country"],
+                        "d": round(srv["d"], 1)
+                    })
+            return flat_servers
+        except Exception as e:
+            return {"error": str(e)}
+        
+    loop = asyncio.get_running_loop()
+    try:
+        res = await loop.run_in_executor(None, run_get_servers)
+        if isinstance(res, dict) and "error" in res:
+            return {"status": "error", "error": res["error"]}
+        return {"status": "success", "servers": res}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+@app.get("/api/speedtest/run")
+async def run_speedtest(server_id: str = None, username: str = Depends(get_current_username)):
+    def run_test():
+        s = speedtest.Speedtest()
+        if server_id:
+            try:
+                s.get_servers([server_id])
+            except Exception:
+                pass # Fallback to auto
+        else:
+            s.get_servers()
+        s.get_best_server()
+        s.download()
+        s.upload()
+        return s.results.dict()
+
+    loop = asyncio.get_running_loop()
+    try:
+        res = await loop.run_in_executor(None, run_test)
+        return {"status": "success", "result": {
+            "download": res["download"] / 10**6, # Mbps
+            "upload": res["upload"] / 10**6, # Mbps
+            "ping": res["ping"],
+            "server": res["server"]
+        }}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
 # ─── Settings & Database Endpoints ───────────────────────────────────────────
 
 class SSLSettings(BaseModel):

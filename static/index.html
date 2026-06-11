@@ -331,6 +331,26 @@
                         <span id="publicIpv6" class="ip-badge ip-badge-v6">—</span>
                     </div>
                 </div>
+                
+                <!-- Speed Test Section -->
+                <div class="stat-details speedtest-section" style="margin-top: 15px; border-top: 1px solid var(--border); padding-top: 15px;">
+                    <div style="font-weight: 500; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
+                        <span>Speed Test</span>
+                        <button id="btnSpeedTest" class="btn-benchmark" style="font-size: 0.8rem; padding: 4px 8px; width: auto; min-width: 80px; display: flex; justify-content: center; align-items: center;">
+                            <span class="btn-text" id="btnSpeedTestText">Run Test</span>
+                            <div class="btn-loader hidden" id="btnSpeedTestLoader"></div>
+                        </button>
+                    </div>
+                    <div class="stat-detail" style="align-items: center; margin-bottom: 8px;">
+                        <span style="font-size: 0.82rem;">Server</span>
+                        <select id="speedtestServer" class="iface-select" style="max-width:180px; padding:2px 4px; font-size:0.8rem; height:auto;">
+                            <option value="">Loading servers...</option>
+                        </select>
+                    </div>
+                    <div class="stat-detail" style="font-size: 0.82rem; margin-bottom: 4px;"><span>Ping</span><span id="speedtestPing">—</span></div>
+                    <div class="stat-detail" style="font-size: 0.82rem; margin-bottom: 4px;"><span>Download</span><span id="speedtestDownload">—</span></div>
+                    <div class="stat-detail" style="font-size: 0.82rem;"><span>Upload</span><span id="speedtestUpload">—</span></div>
+                </div>
             </div>
         </section>
 

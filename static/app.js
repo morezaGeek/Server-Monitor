@@ -2510,6 +2510,80 @@
             .catch(err => console.log("Failed to check GitHub releases:", err));
     }
 
+    function setupSpeedTest() {
+        const btnSpeedTest = document.getElementById("btnSpeedTest");
+        const serverSelect = document.getElementById("speedtestServer");
+        const pingSpan = document.getElementById("speedtestPing");
+        const downSpan = document.getElementById("speedtestDownload");
+        const upSpan = document.getElementById("speedtestUpload");
+        const btnText = document.getElementById("btnSpeedTestText");
+        const btnLoader = document.getElementById("btnSpeedTestLoader");
+
+        if (!btnSpeedTest || !serverSelect) return;
+
+        let isRunning = false;
+
+        // Fetch servers
+        fetch("/api/speedtest/servers")
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "success" && data.servers) {
+                    serverSelect.innerHTML = '<option value="">Auto Select Best</option>';
+                    data.servers.forEach(srv => {
+                        const opt = document.createElement("option");
+                        opt.value = srv.id;
+                        opt.textContent = `${srv.sponsor} - ${srv.name} (${srv.country})`;
+                        serverSelect.appendChild(opt);
+                    });
+                } else {
+                    serverSelect.innerHTML = '<option value="">Failed to load servers</option>';
+                }
+            })
+            .catch(err => {
+                serverSelect.innerHTML = '<option value="">Error loading servers</option>';
+            });
+
+        btnSpeedTest.addEventListener("click", async () => {
+            if (isRunning) return;
+            isRunning = true;
+            btnSpeedTest.disabled = true;
+            btnText.textContent = "Testing...";
+            btnLoader.classList.remove("hidden");
+
+            pingSpan.textContent = "Testing...";
+            downSpan.textContent = "Testing...";
+            upSpan.textContent = "Testing...";
+
+            const serverId = serverSelect.value;
+            let url = "/api/speedtest/run";
+            if (serverId) url += `?server_id=${encodeURIComponent(serverId)}`;
+
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                if (data.status === "success" && data.result) {
+                    pingSpan.textContent = `${data.result.ping.toFixed(1)} ms`;
+                    downSpan.textContent = `${data.result.download.toFixed(2)} Mbps`;
+                    upSpan.textContent = `${data.result.upload.toFixed(2)} Mbps`;
+                } else {
+                    pingSpan.textContent = "Error";
+                    downSpan.textContent = "Error";
+                    upSpan.textContent = "Error";
+                    alert(data.error || "Speed test failed");
+                }
+            } catch (err) {
+                pingSpan.textContent = "Error";
+                downSpan.textContent = "Error";
+                upSpan.textContent = "Error";
+            } finally {
+                isRunning = false;
+                btnSpeedTest.disabled = false;
+                btnText.textContent = "Run Test";
+                btnLoader.classList.add("hidden");
+            }
+        });
+    }
+
     function init() {
         injectSVGGradients();
         setupThemeToggle();
@@ -2522,6 +2596,7 @@
         setupVirtualBrowser();
         setupV2rayMonitor();
         setupSelfUpdate();
+        setupSpeedTest();
 
         // Fetch interfaces first, then initial data + start timers
         fetchInterfaces().then(() => {
