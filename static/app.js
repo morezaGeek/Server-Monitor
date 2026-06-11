@@ -655,7 +655,8 @@
                     }
                 }),
                 tooltip: getTooltipConfig((ctx) => {
-                    const labelText = `${ctx.dataset.label}: ${ctx.parsed.y}`;
+                    const val = ctx.parsed.y;
+                    const labelText = `${ctx.dataset.label}: ${val !== null && val !== undefined ? Math.round(val) : 0}`;
                     return formatTooltipLabel(ctx, labelText);
                 })
             },
