@@ -45,9 +45,9 @@ install_certbot() {
     fi
     echo -e "${BLUE}▸ Installing Certbot...${NC}"
     if [[ "$OS" == "ubuntu" || "$OS" == "debian" ]]; then
-        apt-get install -y -qq certbot > /dev/null 2>&1
+        apt-get install -y certbot
     elif [[ "$OS" == "fedora" || "$OS" == "centos" || "$OS" == "rhel" || "$OS" == "almalinux" || "$OS" == "rocky" ]]; then
-        dnf install -y -q certbot > /dev/null 2>&1
+        dnf install -y certbot
     fi
     if command -v certbot &>/dev/null; then
         echo -e "${GREEN}✔ Certbot installed${NC}"
@@ -268,10 +268,10 @@ do_install() {
     # Install prerequisites
     echo -e "${BLUE}▸ Installing system dependencies...${NC}"
     if [[ "$OS" == "ubuntu" || "$OS" == "debian" ]]; then
-        apt-get update -qq
-        apt-get install -y -qq python3 python3-pip python3-venv sqlite3 git curl wget certbot iptables ipset dnsmasq > /dev/null 2>&1
+        apt-get update
+        apt-get install -y python3 python3-pip python3-venv sqlite3 git curl wget certbot iptables ipset dnsmasq
     elif [[ "$OS" == "fedora" || "$OS" == "centos" || "$OS" == "rhel" || "$OS" == "almalinux" || "$OS" == "rocky" ]]; then
-        dnf install -y -q python3 python3-pip sqlite git curl wget certbot iptables ipset dnsmasq > /dev/null 2>&1
+        dnf install -y python3 python3-pip sqlite git curl wget certbot iptables ipset dnsmasq
     else
         echo -e "${RED}✘ Unsupported OS: $OS${NC}"
         exit 1
@@ -294,12 +294,12 @@ do_install() {
     elif [ -d "$INSTALL_DIR/.git" ]; then
         echo -e "${BLUE}▸ Pulling latest version from GitHub...${NC}"
         cd "$INSTALL_DIR"
-        git fetch --all -q
-        git reset --hard origin/main -q
+        git fetch --all
+        git reset --hard origin/main
     else
         echo -e "${BLUE}▸ Downloading Server Monitor...${NC}"
         mkdir -p "$INSTALL_DIR"
-        git clone "$REPO_URL" "$INSTALL_DIR" -q
+        git clone "$REPO_URL" "$INSTALL_DIR"
         cd "$INSTALL_DIR"
     fi
     echo -e "${GREEN}✔ Files updated${NC}"
@@ -308,8 +308,8 @@ do_install() {
     echo -e "${BLUE}▸ Setting up Python environment...${NC}"
     python3 -m venv venv
     source venv/bin/activate
-    pip install --upgrade pip -q > /dev/null
-    pip install -r requirements.txt -q > /dev/null
+    pip install --upgrade pip
+    pip install -r requirements.txt
     echo -e "${GREEN}✔ Python environment ready${NC}"
 
     # ── UPGRADE: skip all prompts, just restart ───────────────────
