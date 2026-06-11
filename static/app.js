@@ -2572,9 +2572,11 @@
                     alert(data.error || "Speed test failed");
                 }
             } catch (err) {
+                console.error("Speed test fetch error:", err);
                 pingSpan.textContent = "Error";
                 downSpan.textContent = "Error";
                 upSpan.textContent = "Error";
+                alert("Network error: " + err.message);
             } finally {
                 isRunning = false;
                 btnSpeedTest.disabled = false;
