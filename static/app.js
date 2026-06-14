@@ -2050,6 +2050,8 @@
         if (!btnOpen || !overlay) return;
 
         let pollInterval = null;
+        let countdownInterval = null;
+        let lastUpdateSec = 0;
         let cachedUsers = [];
 
         // Open
@@ -2060,6 +2062,9 @@
             if (!pollInterval) {
                 pollInterval = setInterval(fetchV2rayUsers, 2000);
             }
+            if (!countdownInterval) {
+                countdownInterval = setInterval(tickCountdown, 1000);
+            }
         });
 
         // Close
@@ -2068,6 +2073,16 @@
             if (pollInterval) {
                 clearInterval(pollInterval);
                 pollInterval = null;
+            }
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+            }
+            lastUpdateSec = 0;
+            const timerSpan = document.getElementById('v2rayTimer');
+            if (timerSpan) {
+                timerSpan.textContent = '5s';
+                timerSpan.style.color = '#6366f1';
             }
         }
 
@@ -2084,6 +2099,42 @@
             renderTable();
         });
 
+        function updateSyncTimer(backendLastUpdate) {
+            if (backendLastUpdate > lastUpdateSec) {
+                const timerBadge = document.getElementById('v2rayTimerContainer');
+                if (timerBadge && lastUpdateSec > 0) { // Don't flash on first load
+                    timerBadge.style.transition = 'none';
+                    timerBadge.style.borderColor = '#10b981';
+                    timerBadge.style.background = 'rgba(16, 185, 129, 0.1)';
+                    setTimeout(() => {
+                        timerBadge.style.transition = 'border-color 0.5s ease, background 0.5s ease';
+                        timerBadge.style.borderColor = 'var(--border-color)';
+                        timerBadge.style.background = 'var(--bg-card)';
+                    }, 800);
+                }
+            }
+            lastUpdateSec = backendLastUpdate;
+            tickCountdown();
+        }
+
+        function tickCountdown() {
+            if (!lastUpdateSec) return;
+            const nowSec = Date.now() / 1000;
+            const elapsed = Math.floor(nowSec - lastUpdateSec);
+            const remaining = Math.max(0, 5 - elapsed);
+            
+            const timerSpan = document.getElementById('v2rayTimer');
+            if (timerSpan) {
+                if (remaining === 0) {
+                    timerSpan.textContent = 'Syncing...';
+                    timerSpan.style.color = '#ef4444';
+                } else {
+                    timerSpan.textContent = remaining + 's';
+                    timerSpan.style.color = '#6366f1';
+                }
+            }
+        }
+
         async function fetchV2rayUsers() {
             try {
                 const res = await fetch("/api/v2ray/users");
@@ -2093,7 +2144,9 @@
                         tableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #ef4444; padding: 20px;">${data.error}</td></tr>`;
                         return;
                     }
-                    cachedUsers = data;
+                    cachedUsers = data.users || [];
+                    const backendLastUpdate = data.last_update || 0;
+                    updateSyncTimer(backendLastUpdate);
                     renderTable();
                 } else {
                     console.error("Failed to fetch V2ray users: " + res.statusText);

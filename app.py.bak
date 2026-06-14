@@ -915,6 +915,7 @@ class ServiceTrafficCollector:
                 "# --- Service Analyzer DNS Mapping ---",
                 "port=5353",
                 "interface=lo",
+                "interface=tap_vpn",
                 "interface=vpns*",
                 "bind-dynamic",
                 "server=8.8.8.8",
@@ -939,6 +940,8 @@ class ServiceTrafficCollector:
         # 5. Insert transparent DNS redirection rules in NAT table (PREROUTING for VPNs, OUTPUT for local proxy resolution)
         subprocess.run(["iptables", "-t", "nat", "-I", "PREROUTING", "-i", "vpns+", "-p", "udp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"])
         subprocess.run(["iptables", "-t", "nat", "-I", "PREROUTING", "-i", "vpns+", "-p", "tcp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"])
+        subprocess.run(["iptables", "-t", "nat", "-I", "PREROUTING", "-i", "tap_vpn", "-p", "udp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"])
+        subprocess.run(["iptables", "-t", "nat", "-I", "PREROUTING", "-i", "tap_vpn", "-p", "tcp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"])
         subprocess.run(["iptables", "-t", "nat", "-I", "OUTPUT", "-p", "udp", "--dport", "53", "-m", "owner", "!", "--uid-owner", "dnsmasq", "-j", "REDIRECT", "--to-ports", "5353"])
         subprocess.run(["iptables", "-t", "nat", "-I", "OUTPUT", "-p", "tcp", "--dport", "53", "-m", "owner", "!", "--uid-owner", "dnsmasq", "-j", "REDIRECT", "--to-ports", "5353"])
 
@@ -1652,211 +1655,64 @@ async def current_metrics(username: str = Depends(get_current_username)):
 v2ray_prev_bytes = {}  # {email: [{"up": int, "down": int, "time": float}]}
 v2ray_lock = threading.Lock()
 v2ray_cached_results = []
-v2ray_last_update = 0.0
 v2ray_ip_counts = {}  # {email: set_of_ips}
 
-def get_xui_db_config():
-    db_type = "sqlite"
-    db_dsn = None
-    env_file = "/etc/default/x-ui"
-    if os.path.exists(env_file):
-        try:
-            with open(env_file, "r") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line or line.startswith("#"):
-                        continue
-                    if "=" in line:
-                        parts = line.split("=", 1)
-                        key = parts[0].strip()
-                        val = parts[1].strip().strip('"').strip("'")
-                        if key == "XUI_DB_TYPE":
-                            db_type = val
-                        elif key == "XUI_DB_DSN":
-                            db_dsn = val
-        except Exception as e:
-            print(f"Error reading {env_file}: {e}")
-    return db_type, db_dsn
-
-def query_postgres_direct(db_dsn):
-    """Attempt to query PostgreSQL directly using pg8000 or psycopg2.
-    Returns a list of tuples: (email, up, down, last_online, expiry_time, total, enable) or raises Exception."""
-    # 1. Try importing pg8000 first (pure python)
-    try:
-        import pg8000
-        params = {}
-        if db_dsn.startswith("postgresql://") or db_dsn.startswith("postgres://"):
-            from urllib.parse import urlparse
-            url = urlparse(db_dsn)
-            if url.username:
-                params['user'] = url.username
-            if url.password:
-                params['password'] = url.password
-            if url.hostname:
-                params['host'] = url.hostname
-            if url.port:
-                params['port'] = int(url.port)
-            if url.path:
-                params['database'] = url.path.lstrip('/')
-        else:
-            for part in db_dsn.split():
-                if '=' in part:
-                    k, v = part.split('=', 1)
-                    if k == 'dbname':
-                        params['database'] = v
-                    elif k == 'port':
-                        params['port'] = int(v)
-                    else:
-                        params[k] = v
-        
-        # Connect and query
-        conn = pg8000.connect(**params)
-        try:
-            cursor = conn.cursor()
-            cursor.execute("SELECT email, up, down, last_online, expiry_time, total, enable FROM client_traffics;")
-            rows_raw = cursor.fetchall()
-            rows = []
-            for row in rows_raw:
-                email = row[0]
-                up = int(row[1]) if row[1] is not None else 0
-                down = int(row[2]) if row[2] is not None else 0
-                last_online = int(row[3]) if row[3] is not None else 0
-                expiry_time = int(row[4]) if row[4] is not None else 0
-                total = int(row[5]) if row[5] is not None else 0
-                
-                enable_val = row[6]
-                if isinstance(enable_val, bool):
-                    enable = 1 if enable_val else 0
-                elif isinstance(enable_val, int):
-                    enable = 1 if enable_val == 1 else 0
-                else:
-                    enable = 1 if str(enable_val).strip().lower() in ("1", "t", "true") else 0
-                
-                rows.append((email, up, down, last_online, expiry_time, total, enable))
-            return rows
-        finally:
-            conn.close()
-    except Exception as e_pg8000:
-        # 2. Try psycopg2 if pg8000 fails
-        try:
-            import psycopg2
-            conn = psycopg2.connect(db_dsn, connect_timeout=5)
-            try:
-                cursor = conn.cursor()
-                cursor.execute("SELECT email, up, down, last_online, expiry_time, total, enable FROM client_traffics;")
-                rows_raw = cursor.fetchall()
-                rows = []
-                for row in rows_raw:
-                    email = row[0]
-                    up = int(row[1]) if row[1] is not None else 0
-                    down = int(row[2]) if row[2] is not None else 0
-                    last_online = int(row[3]) if row[3] is not None else 0
-                    expiry_time = int(row[4]) if row[4] is not None else 0
-                    total = int(row[5]) if row[5] is not None else 0
-                    
-                    enable_val = row[6]
-                    if isinstance(enable_val, bool):
-                        enable = 1 if enable_val else 0
-                    elif isinstance(enable_val, int):
-                        enable = 1 if enable_val == 1 else 0
-                    else:
-                        enable = 1 if str(enable_val).strip().lower() in ("1", "t", "true") else 0
-                        
-                    rows.append((email, up, down, last_online, expiry_time, total, enable))
-                return rows
-            finally:
-                conn.close()
-        except Exception as e_psycopg2:
-            raise RuntimeError(f"Both pg8000 and psycopg2 failed. pg8000 error: {e_pg8000}; psycopg2 error: {e_psycopg2}")
-
 def _v2ray_background_reader():
-    """Background thread: reads X-UI data via sqlite3, direct Python Postgres, or psql CLI every 5 seconds.
-    Uses the system command-line tools as a fallback to avoid locking and python dependencies."""
+    """Background thread: reads X-UI data via sqlite3 CLI every 5 seconds.
+    Uses the system sqlite3 command-line tool which handles WAL locking properly
+    and never interferes with X-UI's own database operations."""
     import time as _time
     import subprocess as _sp
 
-    global v2ray_prev_bytes, v2ray_cached_results, v2ray_last_update
+    db_path = XUIPaths.get_db_path()
+    global v2ray_prev_bytes, v2ray_cached_results
 
     while True:
-        db_type, db_dsn = get_xui_db_config()
-        query_success = False
-        proc = None
-        rows = []
+        if not os.path.exists(db_path):
+            _time.sleep(30)
+            continue
 
-        if db_type == "postgres" and db_dsn:
+        try:
+            import tempfile, shutil
+            temp_db = os.path.join(tempfile.gettempdir(), "xui_monitor_copy.db")
             try:
-                rows = query_postgres_direct(db_dsn)
-                query_success = True
-            except Exception as e:
-                print(f"Direct Python Postgres query failed, falling back to psql CLI: {e}")
-                try:
-                    proc = _sp.run(
-                        ["psql", db_dsn, "-t", "-A", "-F", "|",
-                         "-c", "SELECT email, up, down, last_online, expiry_time, total, enable FROM client_traffics;"],
-                        capture_output=True, text=True, timeout=5
-                    )
-                    if proc.returncode == 0:
-                        query_success = True
-                except Exception as e_cli:
-                    print(f"Failed to query postgres via psql CLI: {e_cli}")
-
-        if not query_success:
-            db_path = XUIPaths.get_db_path()
-            if not os.path.exists(db_path):
-                _time.sleep(30)
-                continue
-
-            try:
-                import tempfile, shutil
-                temp_db = os.path.join(tempfile.gettempdir(), "xui_monitor_copy.db")
-                try:
-                    shutil.copy2(db_path, temp_db)
-                except Exception:
-                    _time.sleep(10)
-                    continue
-
-                proc = _sp.run(
-                    ["sqlite3", "-separator", "|", temp_db,
-                     "SELECT email, up, down, last_online, expiry_time, total, enable FROM client_traffics;"],
-                    capture_output=True, text=True, timeout=5
-                )
-
-                try:
-                    os.remove(temp_db)
-                except Exception:
-                    pass
-
-                if proc.returncode == 0:
-                    query_success = True
-                else:
-                    _time.sleep(10)
-                    continue
-            except Exception as e:
-                print(f"Error in sqlite fallback: {e}")
+                shutil.copy2(db_path, temp_db)
+            except Exception:
                 _time.sleep(10)
                 continue
 
-        try:
-            if not rows and proc is not None:
-                for line in proc.stdout.strip().split("\n"):
-                    if not line.strip():
+            proc = _sp.run(
+                ["sqlite3", "-separator", "|", temp_db,
+                 "SELECT email, up, down, last_online, expiry_time, total, enable FROM client_traffics;"],
+                capture_output=True, text=True, timeout=5
+            )
+            
+            try:
+                os.remove(temp_db)
+            except Exception:
+                pass
+
+            if proc.returncode != 0:
+                _time.sleep(10)
+                continue
+
+            rows = []
+            for line in proc.stdout.strip().split("\n"):
+                if not line.strip():
+                    continue
+                parts = line.split("|")
+                if len(parts) >= 7:
+                    try:
+                        email = parts[0]
+                        up = int(parts[1]) if parts[1] else 0
+                        down = int(parts[2]) if parts[2] else 0
+                        last_online = int(parts[3]) if parts[3] else 0
+                        expiry_time = int(parts[4]) if parts[4] else 0
+                        total = int(parts[5]) if parts[5] else 0
+                        enable = int(parts[6]) if parts[6] else 0
+                        rows.append((email, up, down, last_online, expiry_time, total, enable))
+                    except (ValueError, IndexError):
                         continue
-                    parts = line.split("|")
-                    if len(parts) >= 7:
-                        try:
-                            email = parts[0]
-                            up = int(parts[1]) if parts[1] else 0
-                            down = int(parts[2]) if parts[2] else 0
-                            last_online = int(parts[3]) if parts[3] else 0
-                            expiry_time = int(parts[4]) if parts[4] else 0
-                            total = int(parts[5]) if parts[5] else 0
-                            
-                            enable_val = parts[6].strip().lower() if parts[6] else "0"
-                            enable = 1 if enable_val in ("1", "t", "true") else 0
-                            
-                            rows.append((email, up, down, last_online, expiry_time, total, enable))
-                        except (ValueError, IndexError):
-                            continue
 
             current_time = _time.time()
             results = []
@@ -1911,14 +1767,13 @@ def _v2ray_background_reader():
 
                 results.sort(key=lambda x: x["down_speed_mbps"], reverse=True)
                 v2ray_cached_results = results
-                v2ray_last_update = _time.time()
 
         except Exception as e:
             import traceback
             print(f"Error in _v2ray_background_reader: {e}")
             traceback.print_exc()
 
-        _time.sleep(5)
+        _time.sleep(10)
 
 # Start background reader thread
 _v2ray_reader_thread = threading.Thread(target=_v2ray_background_reader, daemon=True)
@@ -2002,12 +1857,10 @@ _v2ray_ip_thread.start()
 
 @app.get("/api/v2ray/users")
 def get_v2ray_users(username: str = Depends(get_current_username)):
-    """Return cached V2ray user data."""
+    """Return cached V2ray user data. Data is refreshed every 5s by a background thread
+    that reads via sqlite3 CLI — no direct Python connection to the X-UI database."""
     with v2ray_lock:
-        return {
-            "users": list(v2ray_cached_results),
-            "last_update": v2ray_last_update
-        }
+        return list(v2ray_cached_results)
 
 @app.post("/api/settings/interval")
 def set_refresh_interval(seconds: int = Query(3), username: str = Depends(get_current_username)):

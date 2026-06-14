@@ -838,6 +838,13 @@
                 <div class="v2ray-stats" style="flex: 1; text-align: center; font-size: 0.9rem; color: var(--text-secondary); background: var(--bg-card); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color); white-space: nowrap;">
                     Online: <span id="v2rayActiveCount" style="color: #10b981; font-weight: bold;">0</span> / Total: <span id="v2rayTotalCount" style="font-weight: bold;">0</span>
                 </div>
+                <div class="v2ray-stats" id="v2rayTimerContainer" style="flex: 0.5; text-align: center; font-size: 0.9rem; color: var(--text-secondary); background: var(--bg-card); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color); white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 6px; transition: border-color 0.5s ease, background 0.5s ease;">
+                    <svg style="width: 14px; height: 14px; color: #6366f1;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    Sync: <span id="v2rayTimer" style="font-weight: bold; color: #6366f1;">5s</span>
+                </div>
             </div>
             
             <div class="process-table-container" style="max-height: 480px; overflow-y: auto; border-radius: 8px; border: 1px solid var(--border-color);">
