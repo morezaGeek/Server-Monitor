@@ -735,7 +735,7 @@ class MetricsCollector:
             except Exception as e:
                 print(f"[Telegram Polling Exception] {e}")
                 time.sleep(5)
-            time.sleep(COLLECT_INTERVAL)
+            time.sleep(1)
 
     def _collect(self):
         now = time.time()
@@ -894,12 +894,15 @@ class MetricsCollector:
                 print(f"[Telegram Alert Error] {e}")
 
         # 2. Check Routine Update
-        if interval_hours > 0:
+        if interval_hours != 0:
+            # If negative, treat as minutes
+            interval_seconds = abs(interval_hours) * 60 if interval_hours < 0 else interval_hours * 3600
+            
             if last_routine_sent == 0.0:
-                # Initialize last_routine_sent to now so it doesn't notify immediately on service restart
+                # Set last_routine_sent so it dispatches immediately on the next background loop run
                 with get_db() as conn:
-                    conn.execute("UPDATE telegram_config SET last_routine_sent = ? WHERE id = 1", (now,))
-            elif now - last_routine_sent >= interval_hours * 3600:
+                    conn.execute("UPDATE telegram_config SET last_routine_sent = ? WHERE id = 1", (now - interval_seconds,))
+            elif now - last_routine_sent >= interval_seconds:
                 msg = build_telegram_stats_message(now, cpu, ram_percent, disk_percent, load_avg)
                 try:
                     if send_graph == 1:
@@ -1627,7 +1630,8 @@ async def save_telegram_config(payload: TelegramConfigPayload, username: str = D
                 ram_threshold = ?,
                 load_threshold = ?,
                 disk_threshold = ?,
-                send_graph = ?
+                send_graph = ?,
+                last_routine_sent = 0.0
             WHERE id = 1
         """, (
             payload.bot_token,
