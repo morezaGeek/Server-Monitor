@@ -256,7 +256,8 @@ def init_db():
                 load_threshold REAL DEFAULT 0.0,
                 disk_threshold REAL DEFAULT 0.0,
                 last_routine_sent REAL DEFAULT 0.0,
-                send_graph INTEGER DEFAULT 0
+                send_graph INTEGER DEFAULT 0,
+                enabled INTEGER DEFAULT 1
             )
         """)
         # Migration: add send_graph if missing
@@ -284,13 +285,38 @@ def init_db():
             except Exception as e:
                 print(f"[Migration Error] Failed to alter telegram_config: {e}")
 
+        # Migration: add enabled if missing
+        enabled_column_exists = False
+        if dsn:
+            try:
+                cur = conn.execute("""
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name='telegram_config' AND column_name='enabled'
+                """)
+                enabled_column_exists = cur.fetchone() is not None
+            except Exception:
+                pass
+        else:
+            try:
+                cur = conn.execute("PRAGMA table_info(telegram_config)")
+                columns = [row[1] for row in cur.fetchall()]
+                enabled_column_exists = 'enabled' in columns
+            except Exception:
+                pass
+
+        if not enabled_column_exists:
+            try:
+                conn.execute("ALTER TABLE telegram_config ADD COLUMN enabled INTEGER DEFAULT 1")
+            except Exception as e:
+                print(f"[Migration Error] Failed to alter telegram_config (enabled): {e}")
+
         # Insert default settings if empty
         cur = conn.execute("SELECT COUNT(*) FROM telegram_config WHERE id = 1")
         if cur.fetchone()[0] == 0:
             conn.execute("""
                 INSERT INTO telegram_config
-                (id, bot_token, chat_id, interval_hours, cpu_threshold, ram_threshold, load_threshold, disk_threshold, last_routine_sent, send_graph)
-                VALUES (1, '', '', 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0)
+                (id, bot_token, chat_id, interval_hours, cpu_threshold, ram_threshold, load_threshold, disk_threshold, last_routine_sent, send_graph, enabled)
+                VALUES (1, '', '', 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 1)
             """)
 
 
@@ -639,6 +665,7 @@ class MetricsCollector:
         self._tg_interval_hours = 0
         self._tg_last_routine_sent = 0.0
         self._tg_send_graph = 0
+        self._tg_enabled = 1
         self._tg_last_config_query_time = 0.0
 
     def start(self):
@@ -680,12 +707,12 @@ class MetricsCollector:
             try:
                 with get_db() as conn:
                     row = conn.execute("""
-                        SELECT bot_token, chat_id, send_graph 
+                        SELECT bot_token, chat_id, send_graph, enabled 
                         FROM telegram_config 
                         WHERE id = 1
                     """).fetchone()
                     
-                if not row or not row["bot_token"] or not row["chat_id"]:
+                if not row or not row["bot_token"] or not row["chat_id"] or row["enabled"] == 0:
                     time.sleep(5)
                     continue
                     
@@ -853,12 +880,12 @@ class MetricsCollector:
 
         with get_db() as conn:
             row = conn.execute("""
-                SELECT bot_token, chat_id, cpu_threshold, ram_threshold, load_threshold, disk_threshold
+                SELECT bot_token, chat_id, cpu_threshold, ram_threshold, load_threshold, disk_threshold, enabled
                 FROM telegram_config
                 WHERE id = 1
             """).fetchone()
             
-            if not row or not row["bot_token"] or not row["chat_id"]:
+            if not row or not row["bot_token"] or not row["chat_id"] or row["enabled"] == 0:
                 return
 
             bot_token = row["bot_token"]
@@ -908,7 +935,7 @@ class MetricsCollector:
             try:
                 with get_db() as conn:
                     row = conn.execute("""
-                        SELECT bot_token, chat_id, interval_hours, last_routine_sent, send_graph
+                        SELECT bot_token, chat_id, interval_hours, last_routine_sent, send_graph, enabled
                         FROM telegram_config
                         WHERE id = 1
                     """).fetchone()
@@ -918,6 +945,7 @@ class MetricsCollector:
                         self._tg_interval_hours = row["interval_hours"]
                         self._tg_last_routine_sent = row["last_routine_sent"]
                         self._tg_send_graph = row["send_graph"]
+                        self._tg_enabled = row["enabled"]
                 self._tg_last_config_query_time = now
             except Exception as dbe:
                 print(f"[Telegram Cache Query Error] {dbe}")
@@ -927,8 +955,9 @@ class MetricsCollector:
         interval_hours = self._tg_interval_hours
         last_routine_sent = self._tg_last_routine_sent
         send_graph = self._tg_send_graph
+        enabled = self._tg_enabled
 
-        if not bot_token or not chat_id or interval_hours == 0:
+        if not bot_token or not chat_id or interval_hours == 0 or enabled == 0:
             return
 
         interval_seconds = abs(interval_hours) * 60 if interval_hours < 0 else interval_hours * 3600
@@ -1636,6 +1665,7 @@ class TelegramConfigPayload(BaseModel):
     load_threshold: float
     disk_threshold: float
     send_graph: int = 0
+    enabled: int = 1
 
 class TelegramTestPayload(BaseModel):
     bot_token: str = None
@@ -1646,7 +1676,7 @@ class TelegramTestPayload(BaseModel):
 async def get_telegram_config(username: str = Depends(get_current_username)):
     with get_db() as conn:
         row = conn.execute("""
-            SELECT bot_token, chat_id, interval_hours, cpu_threshold, ram_threshold, load_threshold, disk_threshold, send_graph
+            SELECT bot_token, chat_id, interval_hours, cpu_threshold, ram_threshold, load_threshold, disk_threshold, send_graph, enabled
             FROM telegram_config
             WHERE id = 1
         """).fetchone()
@@ -1659,7 +1689,8 @@ async def get_telegram_config(username: str = Depends(get_current_username)):
                 "ram_threshold": 0.0,
                 "load_threshold": 0.0,
                 "disk_threshold": 0.0,
-                "send_graph": 0
+                "send_graph": 0,
+                "enabled": 1
             })
         return JSONResponse(content={
             "bot_token": row["bot_token"],
@@ -1669,7 +1700,8 @@ async def get_telegram_config(username: str = Depends(get_current_username)):
             "ram_threshold": row["ram_threshold"],
             "load_threshold": row["load_threshold"],
             "disk_threshold": row["disk_threshold"],
-            "send_graph": row["send_graph"]
+            "send_graph": row["send_graph"],
+            "enabled": row["enabled"]
         })
 
 @app.post("/api/telegram/config")
@@ -1685,6 +1717,7 @@ async def save_telegram_config(payload: TelegramConfigPayload, username: str = D
                 load_threshold = ?,
                 disk_threshold = ?,
                 send_graph = ?,
+                enabled = ?,
                 last_routine_sent = 0.0
             WHERE id = 1
         """, (
@@ -1695,7 +1728,8 @@ async def save_telegram_config(payload: TelegramConfigPayload, username: str = D
             payload.ram_threshold,
             payload.load_threshold,
             payload.disk_threshold,
-            payload.send_graph
+            payload.send_graph,
+            payload.enabled
         ))
     return JSONResponse(content={"status": "success", "message": "Configuration saved"})
 

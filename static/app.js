@@ -2377,6 +2377,7 @@
         const tgLoadTh = document.getElementById('tgLoadTh');
         const tgDiskTh = document.getElementById('tgDiskTh');
         const tgSendGraph = document.getElementById('tgSendGraph');
+        const tgEnabled = document.getElementById('tgEnabled');
         
         const btnSave = document.getElementById('btnTelegramSave');
         const btnTest = document.getElementById('btnTelegramTest');
@@ -2410,6 +2411,9 @@
                 tgLoadTh.value = data.load_threshold !== undefined ? data.load_threshold : 0.0;
                 tgDiskTh.value = data.disk_threshold !== undefined ? data.disk_threshold : 0.0;
                 tgSendGraph.checked = data.send_graph === 1;
+                if (tgEnabled) {
+                    tgEnabled.checked = data.enabled !== 0;
+                }
             } catch (err) {
                 console.error("Failed to load telegram config:", err);
             }
@@ -2424,7 +2428,8 @@
                 ram_threshold: parseFloat(tgRamTh.value) || 0.0,
                 load_threshold: parseFloat(tgLoadTh.value) || 0.0,
                 disk_threshold: parseFloat(tgDiskTh.value) || 0.0,
-                send_graph: tgSendGraph.checked ? 1 : 0
+                send_graph: tgSendGraph.checked ? 1 : 0,
+                enabled: tgEnabled ? (tgEnabled.checked ? 1 : 0) : 1
             };
 
             if (!config.bot_token || !config.chat_id) {

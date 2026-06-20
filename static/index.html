@@ -704,6 +704,14 @@
             </div>
             
             <div class="telegram-form" style="display: flex; flex-direction: column; gap: 15px;">
+                <div class="form-group" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: 8px; background: rgba(0, 136, 204, 0.08); border: 1px solid rgba(0, 136, 204, 0.2); margin-bottom: 5px;">
+                    <label for="tgEnabled" style="font-size: 0.88rem; font-weight: 600; color: var(--text-primary); cursor: pointer; user-select: none; display: flex; align-items: center; gap: 8px;">
+                        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></span>
+                        Enable Telegram Integration
+                    </label>
+                    <input type="checkbox" id="tgEnabled" checked style="width: 18px; height: 18px; cursor: pointer;">
+                </div>
+
                 <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
                     <label for="tgBotToken" style="font-size: 0.82rem; font-weight: 500; color: var(--text-secondary);">Bot Token (from @BotFather)</label>
                     <input type="text" id="tgBotToken" placeholder="e.g. 1234567890:ABCdefGhIJKlmNoPQRsTUVwxyZ" style="width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-size: 0.9rem; outline: none;">
