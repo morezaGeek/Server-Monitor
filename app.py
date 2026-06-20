@@ -933,11 +933,20 @@ class MetricsCollector:
 
         interval_seconds = abs(interval_hours) * 60 if interval_hours < 0 else interval_hours * 3600
 
+        # Determine if we should trigger
+        trigger = False
+        aligned_time = 0.0
+        
         if last_routine_sent == 0.0:
-            with get_db() as conn:
-                conn.execute("UPDATE telegram_config SET last_routine_sent = ? WHERE id = 1", (now - interval_seconds,))
-            self._tg_last_routine_sent = now - interval_seconds
+            trigger = True
+            # Align to the past wall-clock grid mark
+            aligned_time = float((int(now) // interval_seconds) * interval_seconds)
         elif now - last_routine_sent >= interval_seconds:
+            trigger = True
+            # Align to the current wall-clock grid mark
+            aligned_time = float((int(now) // interval_seconds) * interval_seconds)
+            
+        if trigger:
             cpu = psutil.cpu_percent()
             ram_percent = psutil.virtual_memory().percent
             disk_percent = psutil.disk_usage("/").percent
@@ -962,11 +971,6 @@ class MetricsCollector:
                             pass
                 else:
                     send_telegram_message(bot_token, chat_id, msg)
-                
-                # Align exact next run
-                aligned_time = last_routine_sent + interval_seconds
-                if now - aligned_time > interval_seconds:
-                    aligned_time = now
                     
                 with get_db() as conn:
                     conn.execute("UPDATE telegram_config SET last_routine_sent = ? WHERE id = 1", (aligned_time,))
