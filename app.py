@@ -667,6 +667,7 @@ class MetricsCollector:
         self._tg_send_graph = 0
         self._tg_enabled = 1
         self._tg_last_config_query_time = 0.0
+        self._tg_last_routine_sent_local = 0.0
 
     def start(self):
         self._prev_net = _get_default_nic_counters()
@@ -943,6 +944,9 @@ class MetricsCollector:
                         self._tg_bot_token = row["bot_token"]
                         self._tg_chat_id = row["chat_id"]
                         self._tg_interval_hours = row["interval_hours"]
+                        # If database value was reset to 0.0 (e.g. from UI), reset local memory tracker too
+                        if row["last_routine_sent"] == 0.0 and self._tg_last_routine_sent != 0.0:
+                            self._tg_last_routine_sent_local = 0.0
                         self._tg_last_routine_sent = row["last_routine_sent"]
                         self._tg_send_graph = row["send_graph"]
                         self._tg_enabled = row["enabled"]
@@ -965,17 +969,21 @@ class MetricsCollector:
         # Determine if we should trigger
         trigger = False
         aligned_time = 0.0
+        aligned_time_now = float((int(now) // interval_seconds) * interval_seconds)
         
         if last_routine_sent == 0.0:
-            trigger = True
-            # Align to the past wall-clock grid mark
-            aligned_time = float((int(now) // interval_seconds) * interval_seconds)
+            if self._tg_last_routine_sent_local != aligned_time_now:
+                trigger = True
+                aligned_time = aligned_time_now
         elif now - last_routine_sent >= interval_seconds:
-            trigger = True
-            # Align to the current wall-clock grid mark
-            aligned_time = float((int(now) // interval_seconds) * interval_seconds)
+            if self._tg_last_routine_sent_local != aligned_time_now:
+                trigger = True
+                aligned_time = aligned_time_now
             
         if trigger:
+            self._tg_last_routine_sent_local = aligned_time
+            self._tg_last_routine_sent = aligned_time
+            
             cpu = psutil.cpu_percent()
             ram_percent = psutil.virtual_memory().percent
             disk_percent = psutil.disk_usage("/").percent
@@ -1001,10 +1009,15 @@ class MetricsCollector:
                 else:
                     send_telegram_message(bot_token, chat_id, msg)
                     
-                with get_db() as conn:
-                    conn.execute("UPDATE telegram_config SET last_routine_sent = ? WHERE id = 1", (aligned_time,))
-                self._tg_last_routine_sent = aligned_time
+                try:
+                    with get_db() as conn:
+                        conn.execute("UPDATE telegram_config SET last_routine_sent = ? WHERE id = 1", (aligned_time,))
+                except Exception as dbe:
+                    print(f"[Telegram Routine DB Write Error] {dbe}")
             except Exception as e:
+                # If sending failed, reset local guards so it will try again
+                self._tg_last_routine_sent_local = 0.0
+                self._tg_last_routine_sent = 0.0
                 print(f"[Telegram Routine Error] {e}")
 
 
