@@ -7,6 +7,9 @@ SERVICE_FILE="/etc/systemd/system/server-monitor.service"
 REPO_URL="https://github.com/morezaGeek/Server-Monitor.git"
 SSL_DIR="/opt/server-monitor/ssl"
 
+# Default configuration states
+ENABLE_V2RAY="true"
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -99,6 +102,7 @@ User=root
 WorkingDirectory=$INSTALL_DIR
 Environment="PANEL_USERNAME=$user"
 Environment="PANEL_PASSWORD=$pass"
+Environment="ENABLE_V2RAY=$ENABLE_V2RAY"
 ExecStart=$INSTALL_DIR/venv/bin/python3 $INSTALL_DIR/venv/bin/uvicorn app:app --host 0.0.0.0 --port $port$ssl_args
 Restart=always
 RestartSec=3
@@ -256,6 +260,7 @@ do_install() {
         PANEL_PORT=$(grep -oP '(?<=--port )\d+' "$SERVICE_FILE" 2>/dev/null || echo "8080")
         PANEL_USER=$(grep -oP '(?<=PANEL_USERNAME=)[^"]*' "$SERVICE_FILE" 2>/dev/null || echo "admin")
         PANEL_PASS=$(grep -oP '(?<=PANEL_PASSWORD=)[^"]*' "$SERVICE_FILE" 2>/dev/null || echo "admin")
+        ENABLE_V2RAY=$(grep -oP '(?<=ENABLE_V2RAY=)[^"]*' "$SERVICE_FILE" 2>/dev/null || echo "true")
         get_ssl_status
 
         echo -e "  ${BLUE}▸ Current config:${NC}"
@@ -360,6 +365,16 @@ do_install() {
         echo -e "  ${RED}Password cannot be empty.${NC}"
     done
 
+    echo ""
+    read -e -p "  🔌 Enable V2ray Monitor? (y/N): " V2RAY_CHOICE < /dev/tty
+    if [[ "$V2RAY_CHOICE" == "y" || "$V2RAY_CHOICE" == "Y" || "$V2RAY_CHOICE" == "yes" ]]; then
+        ENABLE_V2RAY="true"
+    else
+        ENABLE_V2RAY="false"
+    fi
+
+
+
     # SSL Setup
     setup_ssl "$PANEL_PORT" "$PANEL_USER" "$PANEL_PASS"
     SSL_RESULT=$?
@@ -443,6 +458,7 @@ do_configure() {
     CURRENT_PORT=$(grep -oP '(?<=--port )\d+' "$SERVICE_FILE" 2>/dev/null || echo "8080")
     CURRENT_USER=$(grep -oP '(?<=PANEL_USERNAME=)[^"]*' "$SERVICE_FILE" 2>/dev/null || echo "")
     CURRENT_PASS=$(grep -oP '(?<=PANEL_PASSWORD=)[^"]*' "$SERVICE_FILE" 2>/dev/null || echo "")
+    CURRENT_V2RAY=$(grep -oP '(?<=ENABLE_V2RAY=)[^"]*' "$SERVICE_FILE" 2>/dev/null || echo "true")
 
     get_ssl_status
     local ssl_label="HTTP"
@@ -457,10 +473,24 @@ do_configure() {
     read -e -p "  🔌 New Port [$CURRENT_PORT]: " NEW_PORT < /dev/tty
     read -e -p "  👤 New Username [$CURRENT_USER]: " NEW_USER < /dev/tty
     read -e -p "  🔒 New Password [unchanged]: " NEW_PASS < /dev/tty
+    read -e -p "  🔌 Enable V2ray Monitor [$CURRENT_V2RAY] (y/n): " NEW_V2RAY < /dev/tty
+
 
     FINAL_PORT=${NEW_PORT:-$CURRENT_PORT}
     FINAL_USER=${NEW_USER:-$CURRENT_USER}
     FINAL_PASS=${NEW_PASS:-$CURRENT_PASS}
+
+    if [ -n "$NEW_V2RAY" ]; then
+        if [[ "$NEW_V2RAY" == "y" || "$NEW_V2RAY" == "Y" || "$NEW_V2RAY" == "true" || "$NEW_V2RAY" == "yes" ]]; then
+            ENABLE_V2RAY="true"
+        else
+            ENABLE_V2RAY="false"
+        fi
+    else
+        ENABLE_V2RAY=$CURRENT_V2RAY
+    fi
+
+
 
     if [ "$SSL_ENABLED" = true ]; then
         write_service_file "$FINAL_PORT" "$FINAL_USER" "$FINAL_PASS" "$SSL_CERT" "$SSL_KEY" "$SSL_DOMAIN"

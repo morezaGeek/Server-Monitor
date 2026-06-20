@@ -7,7 +7,7 @@
 
     // ─── Config ──────────────────────────────────────────────────────────────
     let STATS_INTERVAL = parseInt(localStorage.getItem('uiRefreshInterval')) * 1000 || 3000;
-    const CHART_INTERVAL = 30_000;  // charts every 30 seconds
+    const CHART_INTERVAL = 60_000;  // charts every 60 seconds
     const CIRCUMFERENCE = 2 * Math.PI * 52; // gauge circle circumference
 
     // ─── Legend Hover-Bold Helper ─────────────────────────────────────────────
@@ -169,7 +169,8 @@
         netSent: { start: "#10b981", end: "#06b6d4", bg: "rgba(16,185,129,0.08)" },
         netRecv: { start: "#06b6d4", end: "#3b82f6", bg: "rgba(6,182,212,0.08)" },
         tcp: { start: "#f59e0b", end: "#d97706", bg: "rgba(245,158,11,0.08)" },
-        udp: { start: "#ef4444", end: "#dc2626", bg: "rgba(239,68,68,0.08)" }
+        udp: { start: "#ef4444", end: "#dc2626", bg: "rgba(239,68,68,0.08)" },
+        load: { start: "#f43f5e", end: "#fb7185", bg: "rgba(244,63,94,0.08)" }
     };
 
     // ─── SVG Gradient Definitions ────────────────────────────────────────────
@@ -199,108 +200,124 @@
 
     // ─── Chart Setup ─────────────────────────────────────────────────────────
 
-    const chartOptions = (yLabel, isPercent = true, forceLegend = false) => ({
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: {
-            mode: "index",
-            intersect: false
-        },
-        onHover(event, activeElements, chart) {
-            const nativeEvt = event.native || event;
-            const nearest = chart.getElementsAtEventForMode(nativeEvt, 'nearest', { intersect: false }, true);
-            const idx = (nearest && nearest[0]) ? nearest[0].datasetIndex : -1;
-            
-            chart.data.datasets.forEach((dataset, i) => {
-                if (typeof dataset._origBorderWidth === 'undefined') {
-                    dataset._origBorderWidth = dataset.borderWidth || 2;
-                }
-                const isHovered = (idx >= 0 && i === idx);
-                dataset.borderWidth = isHovered ? (dataset._origBorderWidth + 1.5) : dataset._origBorderWidth;
-            });
-            
-            if (_legendHover.get(chart) !== idx) {
-                if (idx >= 0) {
-                    _legendHover.set(chart, idx);
-                } else {
-                    _legendHover.delete(chart);
-                }
-            }
-            
-            if (!chart.canvas._hasMouseOutListener) {
-                chart.canvas._hasMouseOutListener = true;
-                chart.canvas.addEventListener('mouseout', () => {
-                    chart.data.datasets.forEach((ds) => {
-                        if (typeof ds._origBorderWidth !== 'undefined') {
-                            ds.borderWidth = ds._origBorderWidth;
-                        }
-                    });
-                    _legendHover.delete(chart);
-                    chart.update('none');
+    const chartOptions = (yLabel, format = "percent", forceLegend = false) => {
+        const isPercent = format === "percent" || format === true;
+        const isNetwork = format === "network" || format === false;
+        return {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: "index",
+                intersect: false
+            },
+            onHover(event, activeElements, chart) {
+                const nativeEvt = event.native || event;
+                const nearest = chart.getElementsAtEventForMode(nativeEvt, 'nearest', { intersect: false }, true);
+                const idx = (nearest && nearest[0]) ? nearest[0].datasetIndex : -1;
+                
+                chart.data.datasets.forEach((dataset, i) => {
+                    if (typeof dataset._origBorderWidth === 'undefined') {
+                        dataset._origBorderWidth = dataset.borderWidth || 2;
+                    }
+                    const isHovered = (idx >= 0 && i === idx);
+                    dataset.borderWidth = isHovered ? (dataset._origBorderWidth + 1.5) : dataset._origBorderWidth;
                 });
-            }
-            
-            chart.update('none');
-        },
-        plugins: {
-            legend: makeLegend({
-                display: forceLegend || !isPercent,
-                position: "top",
-                labels: {
-                    color: "#475569",
-                    font: { family: "'Inter', sans-serif", size: 11 },
-                    boxWidth: 12,
-                    padding: 12
+                
+                if (_legendHover.get(chart) !== idx) {
+                    if (idx >= 0) {
+                        _legendHover.set(chart, idx);
+                    } else {
+                        _legendHover.delete(chart);
+                    }
                 }
-            }),
-            tooltip: getTooltipConfig((ctx) => {
-                const val = ctx.parsed.y;
-                const labelText = isPercent ? `${ctx.dataset.label}: ${val.toFixed(1)}%` : `${ctx.dataset.label}: ${val.toFixed(2)} Mbps`;
-                return formatTooltipLabel(ctx, labelText);
-            })
-        },
-        scales: {
-            x: {
-                type: "time",
-                time: {
-                    tooltipFormat: "PPpp"
+                
+                if (!chart.canvas._hasMouseOutListener) {
+                    chart.canvas._hasMouseOutListener = true;
+                    chart.canvas.addEventListener('mouseout', () => {
+                        chart.data.datasets.forEach((ds) => {
+                            if (typeof ds._origBorderWidth !== 'undefined') {
+                                ds.borderWidth = ds._origBorderWidth;
+                            }
+                        });
+                        _legendHover.delete(chart);
+                        chart.update('none');
+                    });
+                }
+                
+                chart.update('none');
+            },
+            plugins: {
+                legend: makeLegend({
+                    display: forceLegend || isPercent,
+                    position: "top",
+                    labels: {
+                        color: "#475569",
+                        font: { family: "'Inter', sans-serif", size: 11 },
+                        boxWidth: 12,
+                        padding: 12
+                    }
+                }),
+                tooltip: getTooltipConfig((ctx) => {
+                    const val = ctx.parsed.y;
+                    if (val === null) return null;
+                    let labelText;
+                    if (isPercent) {
+                        labelText = `${ctx.dataset.label}: ${val.toFixed(1)}%`;
+                    } else if (isNetwork) {
+                        labelText = `${ctx.dataset.label}: ${val.toFixed(2)} Mbps`;
+                    } else {
+                        labelText = `${ctx.dataset.label}: ${val.toFixed(2)}`;
+                    }
+                    return formatTooltipLabel(ctx, labelText);
+                })
+            },
+            scales: {
+                x: {
+                    type: "time",
+                    time: {
+                        tooltipFormat: "PPpp"
+                    },
+                    grid: {
+                        color: "rgba(0,0,0,0.04)",
+                        drawBorder: false
+                    },
+                    ticks: {
+                        color: "#64748b",
+                        font: { family: "'Inter', sans-serif", size: 10 },
+                        maxRotation: 0,
+                        autoSkipPadding: 20,
+                        maxTicksLimit: 8
+                    }
                 },
-                grid: {
-                    color: "rgba(0,0,0,0.04)",
-                    drawBorder: false
-                },
-                ticks: {
-                    color: "#64748b",
-                    font: { family: "'Inter', sans-serif", size: 10 },
-                    maxRotation: 0,
-                    autoSkipPadding: 20,
-                    maxTicksLimit: 8
+                y: {
+                    beginAtZero: true,
+                    max: isPercent ? 100 : undefined,
+                    grid: {
+                        color: "rgba(0,0,0,0.04)",
+                        drawBorder: false
+                    },
+                    ticks: {
+                        color: "#64748b",
+                        font: { family: "'Inter', sans-serif", size: 10 },
+                        callback: (val) => {
+                            if (isPercent) return val + "%";
+                            if (isNetwork) return val.toFixed(1) + " Mbps";
+                            return val.toFixed(2);
+                        },
+                        maxTicksLimit: 6
+                    }
                 }
             },
-            y: {
-                beginAtZero: true,
-                max: isPercent ? 100 : undefined,
-                grid: {
-                    color: "rgba(0,0,0,0.04)",
-                    drawBorder: false
-                },
-                ticks: {
-                    color: "#64748b",
-                    font: { family: "'Inter', sans-serif", size: 10 },
-                    callback: (val) => isPercent ? val + "%" : val.toFixed(1) + " Mbps",
-                    maxTicksLimit: 6
-                }
+            elements: {
+                point: { radius: 0, hoverRadius: 4, hitRadius: 20 },
+                line: { tension: 0.4, borderWidth: 2 }
+            },
+            animation: {
+                duration: 800,
+                easing: "easeInOutQuart"
             }
-        },
-        elements: {
-            point: { radius: 0, hoverRadius: 4, hitRadius: 20 },
-            line: { tension: 0.4, borderWidth: 2 }
-        },
-        animation: {
-            duration: 800,
-            easing: "easeInOutQuart"
-        }
-    });
+        };
+    };
 
     function createGradient(ctx, startColor, endColor, bgAlpha = 0.15) {
         const gradient = ctx.createLinearGradient(0, 0, 0, ctx.canvas.height);
@@ -313,7 +330,7 @@
         return Math.round(a * 255).toString(16).padStart(2, "0");
     }
 
-    let cpuChart, ramChart, diskChart, diskIopsChart, netChart, connChart;
+    let cpuChart, ramChart, diskChart, diskIopsChart, netChart, connChart, loadChart;
     let lastConnData = [];  // store last fetched data for re-filtering
 
     function initCharts() {
@@ -357,6 +374,44 @@
                 cpuChart.update("none");
             });
         }
+
+
+        const loadCtx = document.getElementById("loadChart").getContext("2d");
+        loadChart = new Chart(loadCtx, {
+            type: "line",
+            data: {
+                datasets: [
+                    {
+                        label: "1 Min",
+                        data: [],
+                        borderColor: "#f43f5e",
+                        backgroundColor: "transparent",
+                        fill: false,
+                        borderWidth: 2,
+                        pointRadius: 0
+                    },
+                    {
+                        label: "5 Min",
+                        data: [],
+                        borderColor: "#3b82f6",
+                        backgroundColor: "transparent",
+                        fill: false,
+                        borderWidth: 1.5,
+                        pointRadius: 0
+                    },
+                    {
+                        label: "15 Min",
+                        data: [],
+                        borderColor: "#10b981",
+                        backgroundColor: "transparent",
+                        fill: false,
+                        borderWidth: 1,
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: chartOptions("Load Average", "raw", true)
+        });
 
 
         const ramCtx = document.getElementById("ramChart").getContext("2d");
@@ -732,6 +787,21 @@
     // ─── Update Current Stats ────────────────────────────────────────────────
 
     function updateCurrentStats(data) {
+        // Apply features flags
+        if (data.features) {
+            const hasV2ray = data.features.v2ray !== false;
+            const btnV2ray = document.getElementById("btnV2rayOpen");
+            if (btnV2ray) {
+                btnV2ray.style.display = hasV2ray ? "flex" : "none";
+            }
+            if (!hasV2ray) {
+                const overlay = document.getElementById('v2rayOverlay');
+                if (overlay && !overlay.classList.contains('hidden')) {
+                    overlay.classList.add('hidden');
+                }
+            }
+        }
+
         // Hostname Badge
         if (data.system && data.system.hostname) {
             const hostEl = document.getElementById("serverHostname");
@@ -903,10 +973,13 @@
         const cpuAvgData = data.map((d, i) => ({ x: timestamps[i], y: d.cpu }));
         cpuChart.data.datasets[0].data = movingAverage(cpuAvgData, getSmoothWindow());
 
-        // Process individual CPU cores if extra exists
-        const sampleWithCores = data.find(d => d.extra && d.extra.cpu_cores && d.extra.cpu_cores.length > 0);
-        if (sampleWithCores) {
-            const numCores = sampleWithCores.extra.cpu_cores.length;
+        let numCores = 0;
+        for (const d of data) {
+            if (d.extra && d.extra.cpu_cores) {
+                numCores = Math.max(numCores, d.extra.cpu_cores.length);
+            }
+        }
+        if (numCores > 0) {
             const corePalette = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#14b8a6", "#0ea5e9", "#8b5cf6", "#d946ef", "#f43f5e", "#ff8a65", "#ba68c8"];
 
             // Ensure cpuChart has enough datasets
@@ -941,6 +1014,52 @@
         cpuChart.update("none");
         const cpuAvg = (data.reduce((s, d) => s + d.cpu, 0) / data.length).toFixed(1);
         document.getElementById("cpuAvgBadge").textContent = `Avg: ${cpuAvg}%`;
+
+        // Load Average
+        loadChart.options.scales.x.min = minMs;
+        loadChart.options.scales.x.max = maxMs;
+
+        const load1Data = [];
+        const load5Data = [];
+        const load15Data = [];
+
+        for (let i = 0; i < data.length; i++) {
+            const d = data[i];
+            const t = timestamps[i];
+            if (d.extra && d.extra.load_avg && d.extra.load_avg.length === 3) {
+                load1Data.push({ x: t, y: d.extra.load_avg[0] });
+                load5Data.push({ x: t, y: d.extra.load_avg[1] });
+                load15Data.push({ x: t, y: d.extra.load_avg[2] });
+            } else {
+                load1Data.push({ x: t, y: null });
+                load5Data.push({ x: t, y: null });
+                load15Data.push({ x: t, y: null });
+            }
+        }
+
+        loadChart.data.datasets[0].data = movingAverage(load1Data, getSmoothWindow());
+        loadChart.data.datasets[1].data = movingAverage(load5Data, getSmoothWindow());
+        loadChart.data.datasets[2].data = movingAverage(load15Data, getSmoothWindow());
+
+        loadChart.update("none");
+
+        // Update load average badge in the card header
+        const loadAvgEl = document.getElementById("loadAvgBadge");
+        if (loadAvgEl && data.length > 0) {
+            let latestLoad = null;
+            for (let i = data.length - 1; i >= 0; i--) {
+                const d = data[i];
+                if (d.extra && d.extra.load_avg && d.extra.load_avg.length === 3) {
+                    latestLoad = d.extra.load_avg;
+                    break;
+                }
+            }
+            if (latestLoad) {
+                loadAvgEl.textContent = `Avg: ${latestLoad[0].toFixed(2)} / ${latestLoad[1].toFixed(2)} / ${latestLoad[2].toFixed(2)}`;
+            } else {
+                loadAvgEl.textContent = "Avg: —";
+            }
+        }
 
         // RAM
         ramChart.options.scales.x.min = minMs;
@@ -1349,7 +1468,7 @@
     // ─── Auto-Refresh ────────────────────────────────────────────────────────
 
     let topProcessesTimer = null;
-    let topProcInterval = 1000;
+    let topProcInterval = 5000;
 
     async function fetchTopProcesses() {
         try {
@@ -2058,9 +2177,9 @@
         btnOpen.addEventListener('click', () => {
             overlay.classList.remove('hidden');
             fetchV2rayUsers();
-            // Start polling every 2000ms
+            // Start polling every 60000ms
             if (!pollInterval) {
-                pollInterval = setInterval(fetchV2rayUsers, 2000);
+                pollInterval = setInterval(fetchV2rayUsers, 60000);
             }
             if (!countdownInterval) {
                 countdownInterval = setInterval(tickCountdown, 1000);
@@ -2081,7 +2200,7 @@
             lastUpdateSec = 0;
             const timerSpan = document.getElementById('v2rayTimer');
             if (timerSpan) {
-                timerSpan.textContent = '5s';
+                timerSpan.textContent = '60s';
                 timerSpan.style.color = '#6366f1';
             }
         }
@@ -2121,7 +2240,7 @@
             if (!lastUpdateSec) return;
             const nowSec = Date.now() / 1000;
             const elapsed = Math.floor(nowSec - lastUpdateSec);
-            const remaining = Math.max(0, 5 - elapsed);
+            const remaining = Math.max(0, 60 - elapsed);
             
             const timerSpan = document.getElementById('v2rayTimer');
             if (timerSpan) {
@@ -2243,6 +2362,136 @@
                 `;
             }).join('');
         }
+    }
+
+    function setupTelegramAlerts() {
+        const btnOpen = document.getElementById('btnTelegramOpen');
+        const overlay = document.getElementById('telegramOverlay');
+        const btnClose = document.getElementById('closeTelegram');
+        
+        const tgBotToken = document.getElementById('tgBotToken');
+        const tgChatId = document.getElementById('tgChatId');
+        const tgInterval = document.getElementById('tgInterval');
+        const tgCpuTh = document.getElementById('tgCpuTh');
+        const tgRamTh = document.getElementById('tgRamTh');
+        const tgLoadTh = document.getElementById('tgLoadTh');
+        const tgDiskTh = document.getElementById('tgDiskTh');
+        const tgSendGraph = document.getElementById('tgSendGraph');
+        
+        const btnSave = document.getElementById('btnTelegramSave');
+        const btnTest = document.getElementById('btnTelegramTest');
+
+        if (!btnOpen || !overlay) return;
+
+        // Open
+        btnOpen.addEventListener('click', async () => {
+            overlay.classList.remove('hidden');
+            await loadTelegramConfig();
+        });
+
+        // Close
+        function closeOverlay() {
+            overlay.classList.add('hidden');
+        }
+        btnClose.addEventListener('click', closeOverlay);
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) closeOverlay();
+        });
+
+        async function loadTelegramConfig() {
+            try {
+                const res = await fetch('/api/telegram/config');
+                const data = await res.json();
+                tgBotToken.value = data.bot_token || '';
+                tgChatId.value = data.chat_id || '';
+                tgInterval.value = data.interval_hours !== undefined ? data.interval_hours : 0;
+                tgCpuTh.value = data.cpu_threshold !== undefined ? data.cpu_threshold : 0.0;
+                tgRamTh.value = data.ram_threshold !== undefined ? data.ram_threshold : 0.0;
+                tgLoadTh.value = data.load_threshold !== undefined ? data.load_threshold : 0.0;
+                tgDiskTh.value = data.disk_threshold !== undefined ? data.disk_threshold : 0.0;
+                tgSendGraph.checked = data.send_graph === 1;
+            } catch (err) {
+                console.error("Failed to load telegram config:", err);
+            }
+        }
+
+        btnSave.addEventListener('click', async () => {
+            const config = {
+                bot_token: tgBotToken.value.trim(),
+                chat_id: tgChatId.value.trim(),
+                interval_hours: parseInt(tgInterval.value, 10) || 0,
+                cpu_threshold: parseFloat(tgCpuTh.value) || 0.0,
+                ram_threshold: parseFloat(tgRamTh.value) || 0.0,
+                load_threshold: parseFloat(tgLoadTh.value) || 0.0,
+                disk_threshold: parseFloat(tgDiskTh.value) || 0.0,
+                send_graph: tgSendGraph.checked ? 1 : 0
+            };
+
+            if (!config.bot_token || !config.chat_id) {
+                alert("Bot Token and Chat ID are required.");
+                return;
+            }
+
+            btnSave.disabled = true;
+            btnSave.textContent = "Saving...";
+
+            try {
+                const res = await fetch('/api/telegram/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    alert("Telegram settings saved successfully!");
+                    closeOverlay();
+                } else {
+                    alert(data.message || "Failed to save settings.");
+                }
+            } catch (err) {
+                console.error("Error saving config:", err);
+                alert("Network error: " + err.message);
+            } finally {
+                btnSave.disabled = false;
+                btnSave.textContent = "Save Settings";
+            }
+        });
+
+        btnTest.addEventListener('click', async () => {
+            const testPayload = {
+                bot_token: tgBotToken.value.trim(),
+                chat_id: tgChatId.value.trim(),
+                send_graph: tgSendGraph.checked ? 1 : 0
+            };
+
+            if (!testPayload.bot_token || !testPayload.chat_id) {
+                alert("Bot Token and Chat ID are required for test.");
+                return;
+            }
+
+            btnTest.disabled = true;
+            btnTest.textContent = "Testing...";
+
+            try {
+                const res = await fetch('/api/telegram/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(testPayload)
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    alert("Test message sent successfully! Please check your Telegram chat.");
+                } else {
+                    alert(data.detail || data.message || "Failed to send test message.");
+                }
+            } catch (err) {
+                console.error("Error sending test:", err);
+                alert("Network error: " + err.message);
+            } finally {
+                btnTest.disabled = false;
+                btnTest.textContent = "Send Test Message";
+            }
+        });
     }
 
     function setupVirtualBrowser() {
@@ -2653,11 +2902,14 @@
         setupV2rayMonitor();
         setupSelfUpdate();
         setupSpeedTest();
+        setupTelegramAlerts();
 
         // Fetch interfaces first, then initial data + start timers
         fetchInterfaces().then(() => {
             fetchCurrent();
-            fetchMetrics();
+            fetchMetrics().then(() => {
+                setTimeout(() => window.dispatchEvent(new Event("resize")), 100);
+            });
 
             // Apply chart colors for current theme
             setTimeout(updateChartColors, 100);
@@ -2667,7 +2919,9 @@
         }).catch(() => {
             // Even if interfaces fail, still start the dashboard
             fetchCurrent();
-            fetchMetrics();
+            fetchMetrics().then(() => {
+                setTimeout(() => window.dispatchEvent(new Event("resize")), 100);
+            });
             setTimeout(updateChartColors, 100);
             startAutoRefresh();
         });

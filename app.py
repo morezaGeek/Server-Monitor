@@ -11,10 +11,8 @@ import sqlite3
 import socket
 import threading
 from datetime import datetime, timedelta
-import concurrent.futures
 import multiprocessing
 import asyncio
-import pty
 from contextlib import contextmanager, asynccontextmanager
 
 import platform
@@ -40,11 +38,32 @@ except ImportError:
 # ─── Configuration ───────────────────────────────────────────────────────────
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metrics.db")
-COLLECT_INTERVAL = 30  # seconds
+COLLECT_INTERVAL = 60  # seconds
 RETENTION_DAYS = 31
 PORT = 8080
 VERSION = "1.0.22"
 UI_REFRESH_INTERVAL = 3
+
+RANGE_MAP = {
+    "1h":  (3600,        None),       # raw data
+    "2h":  (7200,        None),       # raw data
+    "6h":  (21600,       60),         # 1 min average
+    "12h": (43200,       60),         # 1 min average
+    "1d":  (86400,       120),        # 2 min average
+    "2d":  (172800,      300),        # 5 min average
+    "1w":  (604800,      900),        # 15 min average
+    "1m":  (2592000,     3600),       # 1 hour average
+}
+
+# --- Feature Flags Config ---
+def is_v2ray_installed() -> bool:
+    db_paths = ["/etc/x-ui/x-ui.db", "/usr/local/x-ui/x-ui.db", "/opt/x-ui/x-ui.db"]
+    for p in db_paths:
+        if os.path.exists(p): return True
+    return os.path.exists("/etc/default/x-ui")
+
+ENABLE_V2RAY = os.environ.get("ENABLE_V2RAY", "true" if is_v2ray_installed() else "false").lower() in ("true", "1", "yes")
+
 
 # ─── X-UI Dynamic Paths ──────────────────────────────────────────────────────
 class XUIPaths:
@@ -104,71 +123,507 @@ def get_public_ips() -> tuple[str, str]:
 
 # ─── Database ────────────────────────────────────────────────────────────────
 
+class RowWrapper:
+    def __init__(self, row_dict):
+        self._dict = row_dict
+    
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return list(self._dict.values())[key]
+        return self._dict[key]
+        
+    def keys(self):
+        return list(self._dict.keys())
+
+class PostgresCursorWrapper:
+    def __init__(self, cursor):
+        self.cursor = cursor
+
+    def execute(self, sql, params=None):
+        if params is not None:
+            # Translate '?' to '%s' for PostgreSQL compatibility
+            sql = sql.replace('?', '%s')
+            self.cursor.execute(sql, params)
+        else:
+            self.cursor.execute(sql)
+        return self
+
+    def fetchall(self):
+        desc = self.cursor.description
+        if not desc:
+            return []
+        colnames = [d[0] for d in desc]
+        rows = self.cursor.fetchall()
+        return [RowWrapper(dict(zip(colnames, row))) for row in rows]
+
+    def fetchone(self):
+        row = self.cursor.fetchone()
+        if not row:
+            return None
+        desc = self.cursor.description
+        colnames = [d[0] for d in desc]
+        return RowWrapper(dict(zip(colnames, row)))
+
+class PostgresConnectionWrapper:
+    def __init__(self, conn):
+        self.conn = conn
+
+    def cursor(self):
+        return PostgresCursorWrapper(self.conn.cursor())
+
+    def execute(self, sql, params=None):
+        cur = self.cursor()
+        cur.execute(sql, params)
+        return cur
+
+    def commit(self):
+        self.conn.commit()
+
+    def close(self):
+        self.conn.close()
+
 def init_db():
-    """Initialize the SQLite database."""
+    """Initialize the database (PostgreSQL if MONITOR_DB_DSN is set, else SQLite)."""
+    dsn = os.environ.get("MONITOR_DB_DSN")
+    if dsn:
+        with get_db() as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS metrics (
+                    id SERIAL PRIMARY KEY,
+                    timestamp DOUBLE PRECISION NOT NULL,
+                    cpu_percent REAL NOT NULL,
+                    ram_percent REAL NOT NULL,
+                    ram_used_gb REAL NOT NULL,
+                    ram_total_gb REAL NOT NULL,
+                    disk_percent REAL NOT NULL,
+                    disk_used_gb REAL NOT NULL,
+                    disk_total_gb REAL NOT NULL,
+                    net_sent_bytes DOUBLE PRECISION NOT NULL,
+                    net_recv_bytes DOUBLE PRECISION NOT NULL,
+                    net_sent_rate REAL NOT NULL DEFAULT 0,
+                    net_recv_rate REAL NOT NULL DEFAULT 0,
+                    conn_json TEXT DEFAULT '{}',
+                    extra_json TEXT DEFAULT '{}'
+                )
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_metrics_timestamp ON metrics(timestamp)")
+    else:
+        with get_db() as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS metrics (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp REAL NOT NULL,
+                    cpu_percent REAL NOT NULL,
+                    ram_percent REAL NOT NULL,
+                    ram_used_gb REAL NOT NULL,
+                    ram_total_gb REAL NOT NULL,
+                    disk_percent REAL NOT NULL,
+                    disk_used_gb REAL NOT NULL,
+                    disk_total_gb REAL NOT NULL,
+                    net_sent_bytes REAL NOT NULL,
+                    net_recv_bytes REAL NOT NULL,
+                    net_sent_rate REAL NOT NULL DEFAULT 0,
+                    net_recv_rate REAL NOT NULL DEFAULT 0,
+                    conn_json TEXT DEFAULT '{}',
+                    extra_json TEXT DEFAULT '{}'
+                )
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_metrics_timestamp
+                ON metrics(timestamp)
+            """)
+            # Migration: add conn_json if missing
+            try:
+                conn.execute("SELECT conn_json FROM metrics LIMIT 1")
+            except sqlite3.OperationalError:
+                conn.execute("ALTER TABLE metrics ADD COLUMN conn_json TEXT DEFAULT '{}'")
+            # Migration: add extra_json if missing
+            try:
+                conn.execute("SELECT extra_json FROM metrics LIMIT 1")
+            except sqlite3.OperationalError:
+                conn.execute("ALTER TABLE metrics ADD COLUMN extra_json TEXT DEFAULT '{}'")
+
+    # Initialize Telegram alerts configuration table
     with get_db() as conn:
         conn.execute("""
-            CREATE TABLE IF NOT EXISTS metrics (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp REAL NOT NULL,
-                cpu_percent REAL NOT NULL,
-                ram_percent REAL NOT NULL,
-                ram_used_gb REAL NOT NULL,
-                ram_total_gb REAL NOT NULL,
-                disk_percent REAL NOT NULL,
-                disk_used_gb REAL NOT NULL,
-                disk_total_gb REAL NOT NULL,
-                net_sent_bytes REAL NOT NULL,
-                net_recv_bytes REAL NOT NULL,
-                net_sent_rate REAL NOT NULL DEFAULT 0,
-                net_recv_rate REAL NOT NULL DEFAULT 0,
-                conn_json TEXT DEFAULT '{}',
-                extra_json TEXT DEFAULT '{}'
+            CREATE TABLE IF NOT EXISTS telegram_config (
+                id INTEGER PRIMARY KEY,
+                bot_token TEXT DEFAULT '',
+                chat_id TEXT DEFAULT '',
+                interval_hours INTEGER DEFAULT 0,
+                cpu_threshold REAL DEFAULT 0.0,
+                ram_threshold REAL DEFAULT 0.0,
+                load_threshold REAL DEFAULT 0.0,
+                disk_threshold REAL DEFAULT 0.0,
+                last_routine_sent REAL DEFAULT 0.0,
+                send_graph INTEGER DEFAULT 0
             )
         """)
-        conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_metrics_timestamp
-            ON metrics(timestamp)
-        """)
-        # Migration: add conn_json if missing
-        try:
-            conn.execute("SELECT conn_json FROM metrics LIMIT 1")
-        except sqlite3.OperationalError:
-            conn.execute("ALTER TABLE metrics ADD COLUMN conn_json TEXT DEFAULT '{}'")
-        # Migration: add extra_json if missing
-        try:
-            conn.execute("SELECT extra_json FROM metrics LIMIT 1")
-        except sqlite3.OperationalError:
-            conn.execute("ALTER TABLE metrics ADD COLUMN extra_json TEXT DEFAULT '{}'")
-        # Service metrics table
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS service_metrics (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp REAL NOT NULL,
-                service TEXT NOT NULL,
-                bytes_down REAL NOT NULL,
-                bytes_up REAL NOT NULL
-            )
-        """)
-        conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_service_metrics_ts
-            ON service_metrics(timestamp)
-        """)
+        # Migration: add send_graph if missing
+        column_exists = False
+        if dsn:
+            try:
+                cur = conn.execute("""
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name='telegram_config' AND column_name='send_graph'
+                """)
+                column_exists = cur.fetchone() is not None
+            except Exception:
+                pass
+        else:
+            try:
+                cur = conn.execute("PRAGMA table_info(telegram_config)")
+                columns = [row[1] for row in cur.fetchall()]
+                column_exists = 'send_graph' in columns
+            except Exception:
+                pass
+
+        if not column_exists:
+            try:
+                conn.execute("ALTER TABLE telegram_config ADD COLUMN send_graph INTEGER DEFAULT 0")
+            except Exception as e:
+                print(f"[Migration Error] Failed to alter telegram_config: {e}")
+
+        # Insert default settings if empty
+        cur = conn.execute("SELECT COUNT(*) FROM telegram_config WHERE id = 1")
+        if cur.fetchone()[0] == 0:
+            conn.execute("""
+                INSERT INTO telegram_config
+                (id, bot_token, chat_id, interval_hours, cpu_threshold, ram_threshold, load_threshold, disk_threshold, last_routine_sent, send_graph)
+                VALUES (1, '', '', 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0)
+            """)
+
 
 
 @contextmanager
 def get_db():
-    """Context manager for database connections."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    """Context manager for database connections (SQLite or PostgreSQL)."""
+    dsn = os.environ.get("MONITOR_DB_DSN")
+    if dsn:
+        from urllib.parse import urlparse
+        params = {}
+        if dsn.startswith("postgresql://") or dsn.startswith("postgres://"):
+            url = urlparse(dsn)
+            if url.username: params['user'] = url.username
+            if url.password: params['password'] = url.password
+            if url.hostname: params['host'] = url.hostname
+            if url.port: params['port'] = int(url.port)
+            if url.path: params['database'] = url.path.lstrip('/')
+        else:
+            for part in dsn.split():
+                if '=' in part:
+                    k, v = part.split('=', 1)
+                    if k == 'dbname':
+                        params['database'] = v
+                    elif k == 'port':
+                        params['port'] = int(v)
+                    else:
+                        params[k] = v
+        
+        pg_conn = None
+        try:
+            import pg8000
+            pg_conn = pg8000.connect(**params)
+        except Exception as e_pg8000:
+            try:
+                import psycopg2
+                pg_conn = psycopg2.connect(dsn, connect_timeout=5)
+            except Exception as e_psycopg2:
+                raise RuntimeError(
+                    f"Failed to connect to PostgreSQL. pg8000 error: {e_pg8000}; psycopg2 error: {e_psycopg2}"
+                )
+                
+        wrapped_conn = PostgresConnectionWrapper(pg_conn)
+        try:
+            yield wrapped_conn
+            wrapped_conn.commit()
+        except Exception:
+            try:
+                pg_conn.rollback()
+            except Exception:
+                pass
+            raise
+        finally:
+            wrapped_conn.close()
+    else:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            yield conn
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def send_telegram_message(bot_token: str, chat_id: str, text: str):
+    import urllib.request
+    import urllib.parse
+    import urllib.error
+    import json
     try:
-        yield conn
-        conn.commit()
-    finally:
-        conn.close()
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        payload = {
+            "chat_id": chat_id,
+            "text": text,
+            "parse_mode": "HTML",
+            "reply_markup": json.dumps({
+                "keyboard": [
+                    [{"text": "📊 Check Status"}]
+                ],
+                "resize_keyboard": True
+            })
+        }
+        data = urllib.parse.urlencode(payload).encode("utf-8")
+        req = urllib.request.Request(url, data=data, method="POST")
+        with urllib.request.urlopen(req, timeout=10) as response:
+            return response.read().decode("utf-8")
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="ignore")
+        print(f"[Telegram Alert Error] HTTP Error {e.code}: {e.reason} - Body: {body}")
+        raise e
+    except Exception as e:
+        print(f"[Telegram Alert Error] {e}")
+        raise e
 
+def generate_3h_graph(image_path: str):
+    import sqlite3
+    import time
+    import json
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    import matplotlib.dates as mdates
+    from datetime import datetime
+    
+    # Query last 3 hours
+    now = time.time()
+    three_hours_ago = now - 3 * 3600
+    
+    timestamps = []
+    cpu_vals = []
+    ram_vals = []
+    load_vals = []
+    
+    try:
+        with get_db() as conn:
+            cursor = conn.execute("""
+                SELECT timestamp, cpu_percent, ram_percent, extra_json 
+                FROM metrics 
+                WHERE timestamp >= ? 
+                ORDER BY timestamp ASC
+            """, (three_hours_ago,))
+            
+            for row in cursor.fetchall():
+                ts = row["timestamp"]
+                timestamps.append(datetime.fromtimestamp(ts))
+                cpu_vals.append(row["cpu_percent"])
+                ram_vals.append(row["ram_percent"])
+                
+                load_val = 0.0
+                try:
+                    extra = json.loads(row["extra_json"] or "{}")
+                    if "load_avg" in extra and isinstance(extra["load_avg"], list) and len(extra["load_avg"]) > 0:
+                        load_val = extra["load_avg"][0]
+                except Exception:
+                    pass
+                load_vals.append(load_val)
+    except Exception as dbe:
+        print(f"[Graph Generation DB Error] {dbe}")
+            
+    if not timestamps:
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.text(0.5, 0.5, "No metrics collected yet", horizontalalignment='center', verticalalignment='center')
+        plt.savefig(image_path, dpi=100)
+        plt.close()
+        return
 
-# ─── Data Collector ──────────────────────────────────────────────────────────
+    try:
+        fig, ax1 = plt.subplots(figsize=(8, 4.2), dpi=120)
+        plt.title("Server Performance - Last 3 Hours", fontsize=12, fontweight='bold', pad=12)
+        
+        # Grid
+        ax1.grid(True, linestyle='--', alpha=0.5)
+        
+        # Plot CPU & RAM on left y-axis
+        line_cpu, = ax1.plot(timestamps, cpu_vals, label="CPU (%)", color="#3b82f6", linewidth=1.5)
+        line_ram, = ax1.plot(timestamps, ram_vals, label="RAM (%)", color="#10b981", linewidth=1.5)
+        ax1.set_ylabel("Usage (%)", color="#4b5563", fontsize=9)
+        ax1.set_ylim(-2, 102)
+        ax1.tick_params(axis='y', labelcolor="#4b5563", labelsize=8)
+        
+        # Plot Load Average on right y-axis
+        ax2 = ax1.twinx()
+        line_load, = ax2.plot(timestamps, load_vals, label="Load Avg (1m)", color="#f43f5e", linewidth=1.5, linestyle=':')
+        ax2.set_ylabel("Load Average (1m)", color="#4b5563", fontsize=9)
+        max_load = max(load_vals) if load_vals else 1.0
+        ax2.set_ylim(-0.1, max(max_load * 1.2, 1.0))
+        ax2.tick_params(axis='y', labelcolor="#4b5563", labelsize=8)
+        
+        # Format x-axis time
+        ax1.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        ax1.xaxis.set_major_locator(mdates.MinuteLocator(interval=30))
+        ax1.tick_params(axis='x', labelsize=8)
+        fig.autofmt_xdate()
+        
+        # Combined Legend
+        lines = [line_cpu, line_ram, line_load]
+        labels = [l.get_label() for l in lines]
+        ax1.legend(lines, labels, loc="upper left", fontsize=8)
+        
+        plt.tight_layout()
+        plt.savefig(image_path)
+        plt.close()
+    except Exception as pe:
+        print(f"[Graph Plotting Error] {pe}")
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.text(0.5, 0.5, f"Error rendering graph: {pe}", horizontalalignment='center', verticalalignment='center')
+        plt.savefig(image_path, dpi=100)
+        plt.close()
+
+def send_telegram_photo(bot_token: str, chat_id: str, photo_path: str, caption: str = ""):
+    import urllib.request
+    import urllib.error
+    import uuid
+    import json
+    
+    boundary = f"----Boundary-{uuid.uuid4().hex}"
+    
+    with open(photo_path, "rb") as f:
+        photo_data = f.read()
+        
+    body = []
+    
+    # chat_id
+    body.append(f"--{boundary}".encode("utf-8"))
+    body.append('Content-Disposition: form-data; name="chat_id"'.encode("utf-8"))
+    body.append(''.encode("utf-8"))
+    body.append(chat_id.encode("utf-8"))
+    
+    # caption
+    if caption:
+        body.append(f"--{boundary}".encode("utf-8"))
+        body.append('Content-Disposition: form-data; name="caption"'.encode("utf-8"))
+        body.append(''.encode("utf-8"))
+        body.append(caption.encode("utf-8"))
+        
+        body.append(f"--{boundary}".encode("utf-8"))
+        body.append('Content-Disposition: form-data; name="parse_mode"'.encode("utf-8"))
+        body.append(''.encode("utf-8"))
+        body.append("HTML".encode("utf-8"))
+        
+    # reply_markup
+    body.append(f"--{boundary}".encode("utf-8"))
+    body.append('Content-Disposition: form-data; name="reply_markup"'.encode("utf-8"))
+    body.append(''.encode("utf-8"))
+    markup = json.dumps({
+        "keyboard": [
+            [{"text": "📊 Check Status"}]
+        ],
+        "resize_keyboard": True
+    })
+    body.append(markup.encode("utf-8"))
+        
+    # photo file
+    body.append(f"--{boundary}".encode("utf-8"))
+    body.append('Content-Disposition: form-data; name="photo"; filename="graph.png"'.encode("utf-8"))
+    body.append('Content-Type: image/png'.encode("utf-8"))
+    body.append(''.encode("utf-8"))
+    body.append(photo_data)
+    
+    body.append(f"--{boundary}--".encode("utf-8"))
+    body_data = b"\r\n".join(body)
+    
+    try:
+        url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
+        req = urllib.request.Request(url, data=body_data, method="POST")
+        req.add_header("Content-Type", f"multipart/form-data; boundary={boundary}")
+        with urllib.request.urlopen(req, timeout=20) as response:
+            return response.read().decode("utf-8")
+    except urllib.error.HTTPError as e:
+        res_body = e.read().decode("utf-8", errors="ignore")
+        print(f"[Telegram Photo Error] HTTP Error {e.code}: {e.reason} - Body: {res_body}")
+        raise e
+    except Exception as e:
+        print(f"[Telegram Photo Error] {e}")
+        raise e
+
+def build_telegram_stats_message(now, cpu, ram_percent, disk_percent, load_avg=None):
+    import socket
+    import time
+    import psutil
+    import html
+    if load_avg is None:
+        try:
+            load_avg = os.getloadavg()
+        except (AttributeError, OSError):
+            load_avg = (0.0, 0.0, 0.0)
+
+    # Hostname
+    hostname = html.escape(socket.gethostname())
+    
+    # Uptime
+    boot_time = psutil.boot_time()
+    uptime_sec = int(time.time() - boot_time)
+    days = uptime_sec // 86400
+    hours = (uptime_sec % 86400) // 3600
+    minutes = (uptime_sec % 3600) // 60
+    uptime_str = f"{days}d {hours}h {minutes}m"
+
+    # CPU/RAM/Swap
+    ram = psutil.virtual_memory()
+    ram_used = round(ram.used / (1024 ** 3), 2)
+    ram_total = round(ram.total / (1024 ** 3), 2)
+    
+    swap = psutil.swap_memory()
+    swap_used = round(swap.used / (1024 ** 3), 2)
+    swap_total = round(swap.total / (1024 ** 3), 2)
+
+    # Disk
+    disk = psutil.disk_usage("/")
+    disk_used = round(disk.used / (1024 ** 3), 2)
+    disk_total = round(disk.total / (1024 ** 3), 2)
+    disk_speed = disk_tracker.get_speed()
+    
+    # Network
+    net_speed = net_tracker.get_speed().get(DEFAULT_NIC, {
+        "sent_bps": 0, "recv_bps": 0, "sent_total": 0, "recv_total": 0
+    })
+    upload_mbps = round(net_speed["sent_bps"] / 10**6, 2)
+    download_mbps = round(net_speed["recv_bps"] / 10**6, 2)
+
+    # Processes
+    top_procs = _cached_top_procs[:8]
+    proc_lines = []
+    for p in top_procs:
+        p_name = p["name"]
+        if len(p_name) > 15:
+            p_name = p_name[:12] + "..."
+        line = f"{p['pid']:<6} {p_name:<15} {p['user']:<8} {p['cpu']:>4}% {p['mem']:>5}"
+        proc_lines.append(html.escape(line))
+    proc_text = "\n".join(proc_lines)
+
+    msg = (
+        f"📊 <b>[Server Monitor - {hostname}]</b>\n"
+        f"🕒 Time: <code>{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(now))}</code>\n"
+        f"⏱️ Uptime: <code>{uptime_str}</code>\n\n"
+        
+        f"🔹 <b>System Status:</b>\n"
+        f"├─ CPU Usage: <b>{cpu}%</b>\n"
+        f"├─ Load Avg: <b>{load_avg[0]:.2f} / {load_avg[1]:.2f} / {load_avg[2]:.2f}</b>\n"
+        f"├─ Memory: <b>{ram_percent}%</b> ({ram_used}/{ram_total} GB)\n"
+        f"└─ Swap: <b>{round(swap.percent, 1)}%</b> ({swap_used}/{swap_total} GB)\n\n"
+        
+        f"🔹 <b>Storage & Network:</b>\n"
+        f"├─ Disk Usage: <b>{disk_percent}%</b> ({disk_used}/{disk_total} GB)\n"
+        f"├─ Disk Read/Write: <b>{disk_speed['read_bps'] / 10**6:.2f} / {disk_speed['write_bps'] / 10**6:.2f} MB/s</b>\n"
+        f"└─ Network Speed: <b>↑ {upload_mbps} / ↓ {download_mbps} Mbps</b>\n\n"
+        
+        f"🔥 <b>Top 8 Processes:</b>\n"
+        f"<pre>PID    COMMAND         USER     CPU  MEM\n"
+        f"{proc_text}</pre>"
+    )
+    return msg
+
 
 class MetricsCollector:
     """Background collector that samples system metrics every COLLECT_INTERVAL seconds."""
@@ -178,6 +633,7 @@ class MetricsCollector:
         self._prev_time = time.time()
         self._running = False
         self._thread = None
+        self.last_alerts = {"cpu": 0.0, "ram": 0.0, "load": 0.0, "disk": 0.0}
 
     def start(self):
         self._prev_net = _get_default_nic_counters()
@@ -185,6 +641,9 @@ class MetricsCollector:
         self._running = True
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
+        
+        self._tg_thread = threading.Thread(target=self._run_telegram_polling, daemon=True)
+        self._tg_thread.start()
 
     def stop(self):
         self._running = False
@@ -195,6 +654,87 @@ class MetricsCollector:
                 self._collect()
             except Exception as e:
                 print(f"[Collector Error] {e}")
+            time.sleep(COLLECT_INTERVAL)
+
+    def _run_telegram_polling(self):
+        import time
+        import json
+        import urllib.request
+        import urllib.parse
+        import urllib.error
+        
+        offset = 0
+        while self._running:
+            try:
+                with get_db() as conn:
+                    row = conn.execute("""
+                        SELECT bot_token, chat_id, send_graph 
+                        FROM telegram_config 
+                        WHERE id = 1
+                    """).fetchone()
+                    
+                if not row or not row["bot_token"] or not row["chat_id"]:
+                    time.sleep(5)
+                    continue
+                    
+                bot_token = row["bot_token"]
+                chat_id = row["chat_id"]
+                send_graph = row["send_graph"]
+                
+                url = f"https://api.telegram.org/bot{bot_token}/getUpdates?offset={offset}&timeout=10"
+                req = urllib.request.Request(url, method="GET")
+                with urllib.request.urlopen(req, timeout=15) as response:
+                    res_body = response.read().decode("utf-8")
+                    data = json.loads(res_body)
+                    
+                    if not data.get("ok"):
+                        time.sleep(5)
+                        continue
+                        
+                    for update in data.get("result", []):
+                        offset = update["update_id"] + 1
+                        message = update.get("message")
+                        if not message:
+                            continue
+                            
+                        msg_chat_id = str(message["chat"]["id"])
+                        if msg_chat_id != chat_id:
+                            continue
+                            
+                        text = message.get("text", "").strip()
+                        if text in ["/status", "📊 Check Status"]:
+                            now = time.time()
+                            cpu = psutil.cpu_percent()
+                            ram_percent = psutil.virtual_memory().percent
+                            disk_percent = psutil.disk_usage("/").percent
+                            try:
+                                load_avg = os.getloadavg()
+                            except (AttributeError, OSError):
+                                load_avg = (0.0, 0.0, 0.0)
+                                
+                            msg = build_telegram_stats_message(now, cpu, ram_percent, disk_percent, load_avg)
+                            
+                            if send_graph == 1:
+                                import tempfile
+                                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                                    graph_path = tmp.name
+                                try:
+                                    generate_3h_graph(graph_path)
+                                    send_telegram_photo(bot_token, chat_id, graph_path, msg)
+                                finally:
+                                    try:
+                                        os.unlink(graph_path)
+                                    except Exception:
+                                        pass
+                            else:
+                                send_telegram_message(bot_token, chat_id, msg)
+            except urllib.error.HTTPError as he:
+                he_body = he.read().decode("utf-8", errors="ignore")
+                print(f"[Telegram Polling HTTPError] Code {he.code}: {he.reason} - Body: {he_body}")
+                time.sleep(10)
+            except Exception as e:
+                print(f"[Telegram Polling Exception] {e}")
+                time.sleep(5)
             time.sleep(COLLECT_INTERVAL)
 
     def _collect(self):
@@ -235,6 +775,12 @@ class MetricsCollector:
         conn_data = _get_connection_counts()
         conn_json_str = json.dumps(conn_data)
         
+        # Load average (Linux only)
+        try:
+            load_avg = os.getloadavg()
+        except (AttributeError, OSError):
+            load_avg = (0.0, 0.0, 0.0)
+
         # Extra System Resources
         swap = psutil.swap_memory()
         cpu_cores = psutil.cpu_percent(percpu=True)
@@ -250,7 +796,8 @@ class MetricsCollector:
             "disk_read_bps": disk_speed_data.get("read_bps", 0),
             "disk_write_bps": disk_speed_data.get("write_bps", 0),
             "disk_read_iops": disk_speed_data.get("read_iops", 0),
-            "disk_write_iops": disk_speed_data.get("write_iops", 0)
+            "disk_write_iops": disk_speed_data.get("write_iops", 0),
+            "load_avg": [round(load_avg[0], 2), round(load_avg[1], 2), round(load_avg[2], 2)]
         }
         extra_json_str = json.dumps(extra_data)
 
@@ -267,11 +814,112 @@ class MetricsCollector:
                 net.bytes_sent, net.bytes_recv, sent_rate, recv_rate, conn_json_str, extra_json_str
             ))
 
-        # Cleanup old data
-        cutoff = now - (RETENTION_DAYS * 86400)
+        # Cleanup old data (run once every ~100 cycles ≈ every 50 minutes)
+        if not hasattr(self, '_cleanup_counter'):
+            self._cleanup_counter = 0
+        self._cleanup_counter += 1
+        if self._cleanup_counter >= 100:
+            self._cleanup_counter = 0
+            cutoff = now - (RETENTION_DAYS * 86400)
+            with get_db() as conn:
+                conn.execute("DELETE FROM metrics WHERE timestamp < ?", (cutoff,))
+
+        # Check Telegram Alerts
+        try:
+            self._check_telegram_alerts(now, cpu, ram_percent, disk_percent)
+        except Exception as te:
+            print(f"[Telegram Alert Execution Error] {te}")
+
+    def _check_telegram_alerts(self, now, cpu, ram_percent, disk_percent):
+        import socket
+        import time
+        # Get load average
+        try:
+            load_avg = os.getloadavg()
+        except (AttributeError, OSError):
+            load_avg = (0.0, 0.0, 0.0)
+
         with get_db() as conn:
-            conn.execute("DELETE FROM metrics WHERE timestamp < ?", (cutoff,))
-            conn.execute("DELETE FROM service_metrics WHERE timestamp < ?", (cutoff,))
+            row = conn.execute("""
+                SELECT bot_token, chat_id, interval_hours, cpu_threshold, ram_threshold, load_threshold, disk_threshold, last_routine_sent, send_graph
+                FROM telegram_config
+                WHERE id = 1
+            """).fetchone()
+            
+            if not row or not row["bot_token"] or not row["chat_id"]:
+                return
+
+            bot_token = row["bot_token"]
+            chat_id = row["chat_id"]
+            interval_hours = row["interval_hours"]
+            cpu_th = row["cpu_threshold"]
+            ram_th = row["ram_threshold"]
+            load_th = row["load_threshold"]
+            disk_th = row["disk_threshold"]
+            last_routine_sent = row["last_routine_sent"]
+            send_graph = row["send_graph"]
+
+        # 1. Check Alert Thresholds
+        alerts_triggered = []
+        
+        if cpu_th > 0 and cpu > cpu_th:
+            if now - self.last_alerts.get("cpu", 0) > 900: # 15 minutes cooldown
+                alerts_triggered.append(f"⚠️ CPU Usage: {cpu}% (Threshold: {cpu_th}%)")
+                self.last_alerts["cpu"] = now
+
+        if ram_th > 0 and ram_percent > ram_th:
+            if now - self.last_alerts.get("ram", 0) > 900:
+                alerts_triggered.append(f"⚠️ RAM Usage: {ram_percent}% (Threshold: {ram_th}%)")
+                self.last_alerts["ram"] = now
+
+        if load_th > 0 and load_avg[0] > load_th:
+            if now - self.last_alerts.get("load", 0) > 900:
+                alerts_triggered.append(f"⚠️ Load Average 1m: {load_avg[0]} (Threshold: {load_th})")
+                self.last_alerts["load"] = now
+
+        if disk_th > 0 and disk_percent > disk_th:
+            if now - self.last_alerts.get("disk", 0) > 900:
+                alerts_triggered.append(f"⚠️ Disk Usage: {disk_percent}% (Threshold: {disk_th}%)")
+                self.last_alerts["disk"] = now
+
+        # If any alerts triggered, send them
+        if alerts_triggered:
+            import html
+            hostname = html.escape(socket.gethostname())
+            alert_text = f"🚨 <b>[Alert - {hostname}]</b>\n\n" + "\n".join(alerts_triggered)
+            alert_text += f"\n\n🕒 Time: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(now))}"
+            try:
+                send_telegram_message(bot_token, chat_id, alert_text)
+            except Exception as e:
+                print(f"[Telegram Alert Error] {e}")
+
+        # 2. Check Routine Update
+        if interval_hours > 0:
+            if last_routine_sent == 0.0:
+                # Initialize last_routine_sent to now so it doesn't notify immediately on service restart
+                with get_db() as conn:
+                    conn.execute("UPDATE telegram_config SET last_routine_sent = ? WHERE id = 1", (now,))
+            elif now - last_routine_sent >= interval_hours * 3600:
+                msg = build_telegram_stats_message(now, cpu, ram_percent, disk_percent, load_avg)
+                try:
+                    if send_graph == 1:
+                        import tempfile
+                        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                            graph_path = tmp.name
+                        try:
+                            generate_3h_graph(graph_path)
+                            send_telegram_photo(bot_token, chat_id, graph_path, msg)
+                        finally:
+                            try:
+                                os.unlink(graph_path)
+                            except Exception:
+                                pass
+                    else:
+                        send_telegram_message(bot_token, chat_id, msg)
+                    with get_db() as conn:
+                        conn.execute("UPDATE telegram_config SET last_routine_sent = ? WHERE id = 1", (now,))
+                except Exception as e:
+                    print(f"[Telegram Routine Error] {e}")
 
 
 # ─── Network Interface Detection ─────────────────────────────────────────────
@@ -561,472 +1209,7 @@ def parse_geosite_data(file_path):
 
 # ─── FastAPI App ─────────────────────────────────────────────────────────────
 
-class ServiceTrafficCollector:
-    """Background collector that samples service metrics from iptables counters every 1 second and writes to DB every 10 seconds."""
-
-    def __init__(self):
-        self.current_speeds = {}  # {service: {"down_mbps": float, "up_mbps": float}}
-        self._prev_counters = {}  # {service: (prev_down_bytes, prev_up_bytes)}
-        self._db_prev_counters = {}  # {service: (prev_down_bytes, prev_up_bytes)}
-        self._prev_time = time.time()
-        self._running = False
-        self._thread = None
-        self._lock = threading.Lock()
-
-    def start(self):
-        try:
-            self._initialize_network_rules()
-        except Exception as e:
-            print(f"[ServiceCollector Warning] Failed to initialize iptables/ipset: {e}")
-        self._prev_counters = self._get_iptables_counters()
-        self._db_prev_counters = self._prev_counters.copy()
-        self._prev_time = time.time()
-        self._running = True
-        self._thread = threading.Thread(target=self._run, daemon=True)
-        self._thread.start()
-
-    def stop(self):
-        self._running = False
-
-    def _run(self):
-        db_insert_counter = 0
-        while self._running:
-            try:
-                threshold = max(1, int(30 / UI_REFRESH_INTERVAL))
-                self._collect(insert_to_db=(db_insert_counter % threshold == 0))
-                db_insert_counter += 1
-            except Exception as e:
-                print(f"[ServiceCollector Error] {e}")
-            time.sleep(UI_REFRESH_INTERVAL)
-
-    def _initialize_network_rules(self):
-        import subprocess
-        # 1. Ensure ipset package is installed
-        res = subprocess.run(["which", "ipset"], capture_output=True)
-        if res.returncode != 0:
-            subprocess.run(["apt-get", "update"])
-            subprocess.run(["apt-get", "install", "-y", "ipset"])
-
-        # Complete and disjoint list of domains for each service mapping (fallback)
-        fallback_domains = {
-            "apple": [
-                "apple.com", "apple.co", "apple-dns.net", "apple-mapkit.com", "cdn-apple.com", 
-                "icloud-content.com", "icloud.com", "itunes.com", "mzstatic.com", "aaplimg.com", 
-                "apple-cloudkit.com", "appstore.com", "me.com", "apple-support.com", "apple.news", 
-                "apple-pay.com", "applemusic.com", "musickit.net", "icloud.net", "icloud-content.net", 
-                "apple-livephotos.com"
-            ],
-            "meta": [
-                "facebook.com", "facebook.net", "fb.com", "fb.me", "fbcdn.net", 
-                "fbsbx.com", "instagram.com", "cdninstagram.com", "whatsapp.com", 
-                "whatsapp.net", "messenger.com", "ig.me", "m.me", "whatsapp.org",
-                "threads.net", "oculus.com", "fb.co"
-            ],
-            "google_other": [
-                "google.com", "gstatic.com", "googleapis.com", "googleusercontent.com", "gvt1.com", 
-                "google-analytics.com", "googletagmanager.com", "googletagservices.com", 
-                "doubleclick.net", "gvt2.com", "gvt3.com", "googlezip.net", 
-                "urgency.google.com", "widevine.com", "chrome.com", "gmail.com",
-                "googleblog.com", "googlesource.com", "googlehosted.com"
-            ],
-            "google_youtube": [
-                "youtube.com", "ytimg.com", "googlevideo.com", "youtube-nocookie.com", 
-                "youtu.be", "youtubeeducation.com", "youtube-ui.l.google.com", "yt.be",
-                "youtube.co.uk", "youtube.co", "youtube.de", "youtube.fr"
-            ],
-            "google_play": [
-                "play.google.com", "ggpht.com", "android.clients.google.com", "play-lh.googleusercontent.com",
-                "gvt1.com", "gvt2.com", "gvt3.com", "play.googleapis.com"
-            ],
-            "google_ai": [
-                "gemini.google.com", "generativelanguage.googleapis.com", 
-                "vertexai.googleapis.com", "aistudio.google.com", "makersuite.google.com",
-                "deepmind.com", "deepmind.google"
-            ],
-            "openai": [
-                "openai.com", "chatgpt.com", "chat.openai.com", "api.openai.com", 
-                "identrust.com", "oaistatic.com", "oaiusercontent.com", "chat.com", "sora.com"
-            ],
-            "spotify": [
-                "spotify.com", "scdn.co", "spotifycdn.com", "spoti.fi", 
-                "spotifycdn.net", "spotify.design", "spotifyjobs.com", "spotify.link",
-                "pscdn.co", "byspotify.com", "tospotify.com"
-            ],
-
-            "telegram": [
-                "telegram.org", "telegram.me", "t.me", "telegram.dog", "telesco.pe", 
-                "comments.app", "stel.com", "tx.me", "tdesktop.com", "tg.dev", 
-                "telegram.space", "telegram.com", "cdn-telegram.org", "telegram-cdn.org",
-                "fragment.com", "graph.org", "telegra.ph", "telega.one"
-            ],
-            "twitter": [
-                "twitter.com", "twimg.com", "t.co", "x.com", "twitter.co", "twitter.net"
-            ],
-            "tiktok": [
-                "tiktok.com", "tiktokv.com", "tiktokcdn.com", "byteoversea.com", 
-                "ibytedtos.com", "ibyteimg.com", "tiktokcdn-us.com"
-            ],
-            "discord": [
-                "discord.com", "discordapp.com", "discordapp.net", "discord.gg", "discord.media"
-            ],
-            "microsoft": [
-                "microsoft.com", "windowsupdate.com", "live.com", "office.com", "skype.com", 
-                "bing.com", "github.com", "microsoftonline.com", "azure.com"
-            ],
-            "steam": [
-                "steampowered.com", "steamcommunity.com", "steamgames.com", 
-                "steamusercontent.com", "steamcontent.com", "steamstatic.com"
-            ],
-            "snapchat": [
-                "snapchat.com", "snap.com", "sc-cdn.net", "snap-dev.net"
-            ]
-        }
-
-        # Try to parse and extract domains from geosite.dat if available
-        GEOSITE_PATH = XUIPaths.get_geosite_path()
-        geosite_cats = {}
-        if os.path.exists(GEOSITE_PATH):
-            try:
-                geosite_cats = parse_geosite_data(GEOSITE_PATH)
-                print(f"[ServiceCollector] Loaded geosite.dat: {len(geosite_cats)} categories parsed.")
-            except Exception as e:
-                print(f"[ServiceCollector Warning] Failed to parse geosite.dat: {e}")
-
-        def get_geosite_domains(cat_names, default_list):
-            extracted = []
-            for name in cat_names:
-                name_upper = name.upper()
-                if name_upper in geosite_cats:
-                    for dtype, val in geosite_cats[name_upper]:
-                        # dtype: 0=Plain, 1=Regex, 2=Domain, 3=Full
-                        if dtype == 1: # Skip regex
-                            continue
-                        if dtype == 0 and "." not in val: # Skip keywords without dots
-                            continue
-                        val_clean = val.strip().lower()
-                        if val_clean:
-                            extracted.append(val_clean)
-            return list(set(default_list + extracted))
-
-        # Apple
-        apple_domains = get_geosite_domains(["APPLE"], fallback_domains["apple"])
-
-        # Meta
-        meta_domains = get_geosite_domains(["META", "FACEBOOK", "INSTAGRAM", "WHATSAPP", "THREADS"], fallback_domains["meta"])
-
-        # Google sub-services
-        google_youtube = get_geosite_domains(["YOUTUBE"], fallback_domains["google_youtube"])
-        google_play = get_geosite_domains(["GOOGLE-PLAY"], fallback_domains["google_play"])
-        google_ai = get_geosite_domains(["GOOGLE-GEMINI", "GOOGLE-DEEPMIND"], fallback_domains["google_ai"])
-
-        # google_other (Google + Google-CN, excluding domains already captured in sub-services)
-        google_other_raw = get_geosite_domains(["GOOGLE", "GOOGLE-CN"], fallback_domains["google_other"])
-        google_sub_sets = set(google_youtube + google_play + google_ai)
-        google_other = [d for d in google_other_raw if d not in google_sub_sets]
-
-        # OpenAI, Spotify, Telegram, Speedtest
-        openai = get_geosite_domains(["OPENAI"], fallback_domains["openai"])
-        spotify = get_geosite_domains(["SPOTIFY"], fallback_domains["spotify"])
-        telegram = get_geosite_domains(["TELEGRAM"], fallback_domains["telegram"])
-        # New services
-        twitter = get_geosite_domains(["TWITTER"], fallback_domains["twitter"])
-        tiktok = get_geosite_domains(["TIKTOK"], fallback_domains["tiktok"])
-        discord = get_geosite_domains(["DISCORD"], fallback_domains["discord"])
-        microsoft = get_geosite_domains(["MICROSOFT", "GITHUB"], fallback_domains["microsoft"])
-        steam = get_geosite_domains(["STEAM"], fallback_domains["steam"])
-        snapchat = get_geosite_domains(["SNAPCHAT"], fallback_domains["snapchat"])
-
-        services_domains = {
-            "apple": apple_domains,
-            "meta": meta_domains,
-            "google_other": google_other,
-            "google_youtube": google_youtube,
-            "google_play": google_play,
-            "google_ai": google_ai,
-            "openai": openai,
-            "spotify": spotify,
-            "telegram": telegram,
-            "twitter": twitter,
-            "tiktok": tiktok,
-            "discord": discord,
-            "microsoft": microsoft,
-            "steam": steam,
-            "snapchat": snapchat
-        }
-
-        # 2. Clean up old rules with comment "service_" or matching "5353" from filter and nat tables first
-        for table in ["filter", "nat"]:
-            chain_list = ["INPUT", "FORWARD", "OUTPUT"] if table == "filter" else ["PREROUTING", "OUTPUT"]
-            for chain in chain_list:
-                while True:
-                    res = subprocess.run(["iptables", "-t", table, "-L", chain, "-n", "--line-numbers"], capture_output=True, text=True)
-                    if res.returncode != 0:
-                        break
-                    found_line = None
-                    for line in res.stdout.splitlines():
-                        if "service_" in line or "5353" in line:
-                            found_line = line.split()[0]
-                            break
-                    if found_line:
-                        subprocess.run(["iptables", "-t", table, "-D", chain, found_line])
-                    else:
-                        break
-
-        # 3. Recreate ipsets as hash:net to support CIDR networks (destroy old hash:ip sets)
-        for s in services_domains.keys():
-            subprocess.run(["ipset", "destroy", f"ipset_{s}"], stderr=subprocess.DEVNULL)
-            subprocess.run([
-                "ipset", "create", f"ipset_{s}", "hash:net", 
-                "family", "inet", "hashsize", "1024", "maxelem", "65536"
-            ], stderr=subprocess.DEVNULL)
-
-        # 4. Add Telegram CIDRs directly to ipset_telegram (bypasses client DNS resolution)
-        telegram_cidrs = [
-            "91.108.56.0/22",
-            "91.108.4.0/22",
-            "91.108.8.0/22",
-            "91.108.16.0/22",
-            "91.108.12.0/22",
-            "149.154.160.0/20",
-            "91.105.192.0/23",
-            "91.108.20.0/22",
-            "185.76.151.0/24"
-        ]
-        for cidr in telegram_cidrs:
-            subprocess.run(["ipset", "add", "ipset_telegram", cidr], stderr=subprocess.DEVNULL)
-
-        # 4.5 Add Google IP ranges to ipset_google_other
-        try:
-            import urllib.request, json
-            req = urllib.request.Request('https://www.gstatic.com/ipranges/goog.json', headers={'User-Agent': 'Mozilla/5.0'})
-            res = urllib.request.urlopen(req, timeout=5).read()
-            data = json.loads(res)
-            google_cidrs = [p.get('ipv4Prefix') for p in data.get('prefixes', []) if 'ipv4Prefix' in p]
-            for cidr in google_cidrs:
-                subprocess.run(["ipset", "add", "ipset_google_other", cidr], stderr=subprocess.DEVNULL)
-            print(f"Added {len(google_cidrs)} Google IPv4 CIDRs to ipset.")
-        except Exception as e:
-            print(f"Failed to fetch Google IPs: {e}")
-
-        # 4.5.5 Add Microsoft IP ranges to ipset_microsoft (bypasses DNS interception limitations)
-        try:
-            import urllib.request, json
-            microsoft_cidrs = []
-            for asn in ["AS8075", "AS8068", "AS8069"]:
-                url = f"https://stat.ripe.net/data/announced-prefixes/data.json?resource={asn}"
-                try:
-                    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-                    with urllib.request.urlopen(req, timeout=8) as response:
-                        res_data = json.loads(response.read().decode())
-                        prefixes = [p['prefix'] for p in res_data.get('data', {}).get('prefixes', []) if 'prefix' in p and ':' not in p['prefix']]
-                        microsoft_cidrs.extend(prefixes)
-                except Exception as asn_err:
-                    print(f"Failed to fetch {asn} IPs: {asn_err}")
-            
-            microsoft_cidrs = list(set(microsoft_cidrs))
-            for cidr in microsoft_cidrs:
-                subprocess.run(["ipset", "add", "ipset_microsoft", cidr], stderr=subprocess.DEVNULL)
-            print(f"Added {len(microsoft_cidrs)} Microsoft IPv4 CIDRs to ipset.")
-        except Exception as e:
-            print(f"Failed to populate Microsoft IPs: {e}")
-
-
-        # 4.6 Parse Xray config and dynamically seed outbound proxy IPs to ipsets (for tunnel traffic accounting)
-        try:
-            xray_config_path = XUIPaths.get_xray_config()
-            if os.path.exists(xray_config_path):
-                import json, socket
-                with open(xray_config_path, "r") as f:
-                    xray_config = json.load(f)
-                
-                outbound_ips = {}
-                for outbound in xray_config.get("outbounds", []):
-                    tag = outbound.get("tag")
-                    settings = outbound.get("settings", {})
-                    address = settings.get("address")
-                    if isinstance(address, list):
-                        address = address[0] if address else None
-                    if not address and "vnext" in settings:
-                        vnext = settings["vnext"]
-                        if vnext and isinstance(vnext, list):
-                            address = vnext[0].get("address")
-                    if not address and "servers" in settings:
-                        servers = settings["servers"]
-                        if servers and isinstance(servers, list):
-                            address = servers[0].get("address")
-                            
-                    if address:
-                        try:
-                            # Resolve address to all IPv4 IPs
-                            infos = socket.getaddrinfo(address, None, socket.AF_INET)
-                            ips = list(set([info[4][0] for info in infos]))
-                            outbound_ips[tag] = ips
-                            print(f"Resolved outbound '{tag}' ({address}) to {ips}")
-                        except Exception as res_err:
-                            print(f"Failed to resolve outbound address {address}: {res_err}")
-                
-                routing = xray_config.get("routing", {})
-                for rule in routing.get("rules", []):
-                    outbound_tag = rule.get("outboundTag")
-                    if outbound_tag in outbound_ips:
-                        ips_to_add = outbound_ips[outbound_tag]
-                        domains = rule.get("domain", [])
-                        ips = rule.get("ip", [])
-                        
-                        is_youtube = False
-                        is_google = False
-                        
-                        for d in domains:
-                            if "youtube" in d.lower() or "googlevideo" in d.lower():
-                                is_youtube = True
-                            elif "google" in d.lower() or "gstatic" in d.lower():
-                                is_google = True
-                                
-                        for i in ips:
-                            if "google" in i.lower():
-                                is_google = True
-                                
-                        for ip in ips_to_add:
-                            if is_youtube:
-                                subprocess.run(["ipset", "add", "ipset_google_youtube", ip], stderr=subprocess.DEVNULL)
-                                print(f"Added outbound IP {ip} to ipset_google_youtube")
-                            elif is_google:
-                                subprocess.run(["ipset", "add", "ipset_google_other", ip], stderr=subprocess.DEVNULL)
-                                print(f"Added outbound IP {ip} to ipset_google_other")
-        except Exception as xray_err:
-            print(f"Failed to process Xray config for outbound IPs: {xray_err}")
-
-        # 4. Rewrite /etc/dnsmasq.conf with the updated domains and local DNS redirect
-        try:
-            existing_lines = []
-            if os.path.exists("/etc/dnsmasq.conf"):
-                with open("/etc/dnsmasq.conf", "r") as f:
-                    existing_lines = f.read().splitlines()
-
-            new_config_lines = []
-            for line in existing_lines:
-                clean_line = line.strip()
-                if clean_line.startswith("port=") or clean_line.startswith("listen-address=") or clean_line.startswith("server=") or clean_line.startswith("ipset=") or clean_line == "bind-interfaces" or clean_line == "bind-dynamic" or clean_line.startswith("interface="):
-                    continue
-                new_config_lines.append(line)
-
-            dnsmasq_lines = [
-                "",
-                "# --- Service Analyzer DNS Mapping ---",
-                "port=5353",
-                "interface=lo",
-                "interface=vpns*",
-                "bind-dynamic",
-                "server=8.8.8.8",
-                "server=1.1.1.1"
-            ]
-
-            # Write more specific sub-domains first
-            for service, domains in services_domains.items():
-                ipset_name = f"ipset_{service}"
-                for domain in domains:
-                    dnsmasq_lines.append(f"ipset=/{domain}/{ipset_name}")
-
-            new_config_lines.extend(dnsmasq_lines)
-            with open("/etc/dnsmasq.conf", "w") as f:
-                f.write("\n".join(new_config_lines))
-            
-            # Restart dnsmasq
-            subprocess.run(["systemctl", "restart", "dnsmasq"])
-        except Exception as e:
-            print(f"[ServiceCollector Error] Failed to write dnsmasq config: {e}")
-
-        # 5. Insert transparent DNS redirection rules in NAT table (PREROUTING for VPNs, OUTPUT for local proxy resolution)
-        subprocess.run(["iptables", "-t", "nat", "-I", "PREROUTING", "-i", "vpns+", "-p", "udp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"])
-        subprocess.run(["iptables", "-t", "nat", "-I", "PREROUTING", "-i", "vpns+", "-p", "tcp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"])
-        subprocess.run(["iptables", "-t", "nat", "-I", "OUTPUT", "-p", "udp", "--dport", "53", "-m", "owner", "!", "--uid-owner", "dnsmasq", "-j", "REDIRECT", "--to-ports", "5353"])
-        subprocess.run(["iptables", "-t", "nat", "-I", "OUTPUT", "-p", "tcp", "--dport", "53", "-m", "owner", "!", "--uid-owner", "dnsmasq", "-j", "REDIRECT", "--to-ports", "5353"])
-
-        # 6. Insert filter rules (FORWARD, INPUT, OUTPUT)
-        for s in services_domains.keys():
-            ipset_name = f"ipset_{s}"
-            # FORWARD (routed VPN traffic)
-            subprocess.run(["iptables", "-I", "FORWARD", "-m", "set", "--match-set", ipset_name, "src", "-m", "comment", "--comment", f"service_{s}_down", "-j", "ACCEPT"])
-            subprocess.run(["iptables", "-I", "FORWARD", "-m", "set", "--match-set", ipset_name, "dst", "-m", "comment", "--comment", f"service_{s}_up", "-j", "ACCEPT"])
-            # INPUT (incoming proxy traffic - Download)
-            subprocess.run(["iptables", "-I", "INPUT", "-m", "set", "--match-set", ipset_name, "src", "-m", "comment", "--comment", f"service_{s}_down", "-j", "ACCEPT"])
-            # OUTPUT (outgoing proxy traffic - Upload)
-            subprocess.run(["iptables", "-I", "OUTPUT", "-m", "set", "--match-set", ipset_name, "dst", "-m", "comment", "--comment", f"service_{s}_up", "-j", "ACCEPT"])
-
-    def _get_iptables_counters(self):
-        import subprocess
-        import re
-        counters = {}
-        try:
-            res = subprocess.run(["iptables", "-L", "-n", "-v", "-x"], capture_output=True, text=True)
-            if res.returncode == 0:
-                pattern = re.compile(r'^\s*(\d+)\s+(\d+)\s+.*service_([a-z0-9_]+)_(down|up)')
-                for line in res.stdout.splitlines():
-                    m = pattern.search(line)
-                    if m:
-                        val = int(m.group(2))
-                        service = m.group(3)
-                        direction = m.group(4)
-                        if service not in counters:
-                            counters[service] = [0, 0]
-                        if direction == "down":
-                            counters[service][0] += val
-                        elif direction == "up":
-                            counters[service][1] += val
-            
-            # Dynamically compute Google total from sub-services
-            if "google" not in counters:
-                counters["google"] = [0, 0]
-            for sub in ["google_youtube", "google_play", "google_ai", "google_other"]:
-                if sub in counters:
-                    counters["google"][0] += counters[sub][0]
-                    counters["google"][1] += counters[sub][1]
-        except Exception as e:
-            print(f"[iptables parsing error] {e}")
-        return counters
-
-    def _collect(self, insert_to_db=False):
-        now = time.time()
-        elapsed = now - self._prev_time
-        if elapsed <= 0:
-            elapsed = 1.0
-
-        current = self._get_iptables_counters()
-        new_speeds = {}
-        with self._lock:
-            # 1. Update live speeds based on 1-second interval
-            for service, (cur_down, cur_up) in current.items():
-                prev_down, prev_up = self._prev_counters.get(service, (0, 0))
-                delta_down = cur_down - prev_down if cur_down >= prev_down else cur_down
-                delta_up = cur_up - prev_up if cur_up >= prev_up else cur_up
-                
-                # Speed in Mbps
-                down_mbps = round((delta_down * 8) / (elapsed * 1024 * 1024), 3)
-                up_mbps = round((delta_up * 8) / (elapsed * 1024 * 1024), 3)
-                new_speeds[service] = {"down_mbps": down_mbps, "up_mbps": up_mbps}
-            
-            # 2. Insert accumulated delta into database if it's time (every 10 seconds)
-            if insert_to_db:
-                with get_db() as conn:
-                    for service, (cur_down, cur_up) in current.items():
-                        db_prev_down, db_prev_up = self._db_prev_counters.get(service, (0, 0))
-                        db_delta_down = cur_down - db_prev_down if cur_down >= db_prev_down else cur_down
-                        db_delta_up = cur_up - db_prev_up if cur_up >= db_prev_up else cur_up
-                        
-                        conn.execute("""
-                            INSERT INTO service_metrics (timestamp, service, bytes_down, bytes_up)
-                            VALUES (?, ?, ?, ?)
-                        """, (now, service, db_delta_down, db_delta_up))
-                
-                # Update db_prev_counters
-                self._db_prev_counters = current.copy()
-            
-            self.current_speeds = new_speeds
-            self._prev_counters = current
-            self._prev_time = now
-
 collector = MetricsCollector()
-service_collector = ServiceTrafficCollector()
 net_tracker = NetworkSpeedTracker()
 disk_tracker = DiskSpeedTracker()
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
@@ -1069,10 +1252,8 @@ def get_cpu_model_name():
 async def lifespan(application):
     init_db()
     collector.start()
-    service_collector.start()
     yield
     collector.stop()
-    service_collector.stop()
 
 
 app = FastAPI(title="Server Monitor", lifespan=lifespan)
@@ -1389,6 +1570,123 @@ class SSLSettings(BaseModel):
     certificate_pem: str
     private_key_pem: str
 
+class TelegramConfigPayload(BaseModel):
+    bot_token: str
+    chat_id: str
+    interval_hours: int
+    cpu_threshold: float
+    ram_threshold: float
+    load_threshold: float
+    disk_threshold: float
+    send_graph: int = 0
+
+class TelegramTestPayload(BaseModel):
+    bot_token: str = None
+    chat_id: str = None
+    send_graph: int = None
+
+@app.get("/api/telegram/config")
+async def get_telegram_config(username: str = Depends(get_current_username)):
+    with get_db() as conn:
+        row = conn.execute("""
+            SELECT bot_token, chat_id, interval_hours, cpu_threshold, ram_threshold, load_threshold, disk_threshold, send_graph
+            FROM telegram_config
+            WHERE id = 1
+        """).fetchone()
+        if not row:
+            return JSONResponse(content={
+                "bot_token": "",
+                "chat_id": "",
+                "interval_hours": 0,
+                "cpu_threshold": 0.0,
+                "ram_threshold": 0.0,
+                "load_threshold": 0.0,
+                "disk_threshold": 0.0,
+                "send_graph": 0
+            })
+        return JSONResponse(content={
+            "bot_token": row["bot_token"],
+            "chat_id": row["chat_id"],
+            "interval_hours": row["interval_hours"],
+            "cpu_threshold": row["cpu_threshold"],
+            "ram_threshold": row["ram_threshold"],
+            "load_threshold": row["load_threshold"],
+            "disk_threshold": row["disk_threshold"],
+            "send_graph": row["send_graph"]
+        })
+
+@app.post("/api/telegram/config")
+async def save_telegram_config(payload: TelegramConfigPayload, username: str = Depends(get_current_username)):
+    with get_db() as conn:
+        conn.execute("""
+            UPDATE telegram_config
+            SET bot_token = ?,
+                chat_id = ?,
+                interval_hours = ?,
+                cpu_threshold = ?,
+                ram_threshold = ?,
+                load_threshold = ?,
+                disk_threshold = ?,
+                send_graph = ?
+            WHERE id = 1
+        """, (
+            payload.bot_token,
+            payload.chat_id,
+            payload.interval_hours,
+            payload.cpu_threshold,
+            payload.ram_threshold,
+            payload.load_threshold,
+            payload.disk_threshold,
+            payload.send_graph
+        ))
+    return JSONResponse(content={"status": "success", "message": "Configuration saved"})
+
+@app.post("/api/telegram/test")
+async def test_telegram_config(payload: TelegramTestPayload, username: str = Depends(get_current_username)):
+    bot_token = payload.bot_token
+    chat_id = payload.chat_id
+    send_graph = payload.send_graph
+    
+    # Fallback to saved if not provided in payload
+    with get_db() as conn:
+        row = conn.execute("SELECT bot_token, chat_id, send_graph FROM telegram_config WHERE id = 1").fetchone()
+        if row:
+            if not bot_token: bot_token = row["bot_token"]
+            if not chat_id: chat_id = row["chat_id"]
+            if send_graph is None: send_graph = row["send_graph"]
+                
+    if not bot_token or not chat_id:
+        raise HTTPException(status_code=400, detail="Bot Token and Chat ID are required")
+        
+    try:
+        now = time.time()
+        cpu = psutil.cpu_percent()
+        ram = psutil.virtual_memory()
+        disk = psutil.disk_usage("/")
+        
+        msg = "🧪 <b>[Server Monitor - Test Message]</b>\n"
+        msg += "This is a test notification from your server.\n\n"
+        msg += build_telegram_stats_message(now, cpu, ram.percent, disk.percent)
+        
+        if send_graph == 1:
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                graph_path = tmp.name
+            try:
+                generate_3h_graph(graph_path)
+                send_telegram_photo(bot_token, chat_id, graph_path, msg)
+            finally:
+                try:
+                    os.unlink(graph_path)
+                except Exception:
+                    pass
+        else:
+            send_telegram_message(bot_token, chat_id, msg)
+            
+        return JSONResponse(content={"status": "success", "message": "Test message sent successfully"})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send message: {str(e)}")
+
 @app.get("/api/backup")
 async def download_db(username: str = Depends(get_current_username)):
     """Download the current metrics.db file."""
@@ -1529,10 +1827,16 @@ async def list_interfaces(username: str = Depends(get_current_username)):
     return {"default": DEFAULT_NIC, "interfaces": _get_all_nic_info()}
 
 
+_current_cache = {"data": None, "ts": 0}
+
 @app.get("/api/current")
 async def current_metrics(username: str = Depends(get_current_username)):
-    """Return current system metrics snapshot."""
-    cpu = psutil.cpu_percent(interval=0.1)
+    """Return current system metrics snapshot (cached for 1 second)."""
+    now = time.time()
+    if _current_cache["data"] is not None and (now - _current_cache["ts"]) < 1.0:
+        return _current_cache["data"]
+
+    cpu = psutil.cpu_percent(interval=0)
     cpu_per_core = psutil.cpu_percent(percpu=True)
     ram = psutil.virtual_memory()
     swap = psutil.swap_memory()
@@ -1591,7 +1895,7 @@ async def current_metrics(username: str = Depends(get_current_username)):
             "recv_gb": round(spd["recv_total"] / (1024 ** 3), 2)
         }
 
-    return {
+    result = {
         "cpu": {
             "model": get_cpu_model_name(),
             "percent": cpu,
@@ -1644,8 +1948,15 @@ async def current_metrics(username: str = Depends(get_current_username)):
             "version": VERSION
         },
         "connections": _get_connection_counts(),
-        "public_ips": dict(zip(("ipv4", "ipv6"), get_public_ips()))
+        "public_ips": dict(zip(("ipv4", "ipv6"), get_public_ips())),
+        "features": {
+            "v2ray": ENABLE_V2RAY
+        }
     }
+
+    _current_cache["data"] = result
+    _current_cache["ts"] = now
+    return result
 
 
 # global storage for V2ray speed tracking (safe: uses sqlite3 CLI, never opens DB directly)
@@ -1921,8 +2232,9 @@ def _v2ray_background_reader():
         _time.sleep(5)
 
 # Start background reader thread
-_v2ray_reader_thread = threading.Thread(target=_v2ray_background_reader, daemon=True)
-_v2ray_reader_thread.start()
+if ENABLE_V2RAY:
+    _v2ray_reader_thread = threading.Thread(target=_v2ray_background_reader, daemon=True)
+    _v2ray_reader_thread.start()
 
 def _v2ray_ip_counter():
     """Background thread: parses Xray access log every 10 seconds to count
@@ -1997,12 +2309,15 @@ def _v2ray_ip_counter():
         _time.sleep(10)
 
 # Start background IP counter thread
-_v2ray_ip_thread = threading.Thread(target=_v2ray_ip_counter, daemon=True)
-_v2ray_ip_thread.start()
+if ENABLE_V2RAY:
+    _v2ray_ip_thread = threading.Thread(target=_v2ray_ip_counter, daemon=True)
+    _v2ray_ip_thread.start()
 
 @app.get("/api/v2ray/users")
 def get_v2ray_users(username: str = Depends(get_current_username)):
     """Return cached V2ray user data."""
+    if not ENABLE_V2RAY:
+        return {"users": [], "last_update": 0.0, "error": "V2ray monitoring is disabled"}
     with v2ray_lock:
         return {
             "users": list(v2ray_cached_results),
@@ -2020,82 +2335,6 @@ def set_refresh_interval(seconds: int = Query(3), username: str = Depends(get_cu
 
 
 # Time range mapping: range_key -> (total_seconds, aggregate_bucket_seconds)
-RANGE_MAP = {
-    "1h":  (3600,        None),       # raw data
-    "2h":  (7200,        None),       # raw data
-    "6h":  (21600,       30),         # 30 sec average
-    "12h": (43200,       60),         # 1 min average
-    "1d":  (86400,       120),        # 2 min average
-    "2d":  (172800,      300),        # 5 min average
-    "1w":  (604800,      900),        # 15 min average
-    "1m":  (2592000,     3600),       # 1 hour average
-}
-
-
-@app.get("/api/services/current")
-async def get_services_current(username: str = Depends(get_current_username)):
-    """Return real-time speeds (Mbps) for all tracked services."""
-    with service_collector._lock:
-        return service_collector.current_speeds
-
-
-@app.get("/api/services/metrics")
-async def get_services_metrics(
-    range: str = Query("1h"), 
-    seconds: int = Query(None, ge=60, le=7776000), 
-    username: str = Depends(get_current_username)
-):
-    """Return historical payload volume (bytes) for all tracked services over range."""
-    if seconds is not None:
-        total_seconds = seconds
-        # Auto-calculate aggregation bucket based on duration
-        if seconds <= 7200:        bucket = None       # raw
-        elif seconds <= 21600:     bucket = 30          # 30s avg
-        elif seconds <= 43200:     bucket = 60          # 1m avg
-        elif seconds <= 86400:     bucket = 120         # 2m avg
-        elif seconds <= 172800:    bucket = 300         # 5m avg
-        elif seconds <= 604800:    bucket = 900         # 15m avg
-        else:                      bucket = 3600        # 1h avg
-    else:
-        total_seconds, bucket = RANGE_MAP.get(range, (3600, None))
-
-    cutoff = time.time() - total_seconds
-
-    with get_db() as conn:
-        if bucket is None:
-            # Return raw data
-            rows = conn.execute("""
-                SELECT timestamp, service, bytes_down, bytes_up
-                FROM service_metrics
-                WHERE timestamp >= ?
-                ORDER BY timestamp ASC
-            """, (cutoff,)).fetchall()
-        else:
-            # Return aggregated data summed up by bucket
-            rows = conn.execute(f"""
-                SELECT
-                    CAST(timestamp / ? AS INTEGER) * ? AS bucket_ts,
-                    service,
-                    SUM(bytes_down) AS bytes_down,
-                    SUM(bytes_up) AS bytes_up
-                FROM service_metrics
-                WHERE timestamp >= ?
-                GROUP BY bucket_ts, service
-                ORDER BY bucket_ts ASC
-            """, (bucket, bucket, cutoff)).fetchall()
-
-    data = []
-    for row in rows:
-        ts = row["bucket_ts"] if "bucket_ts" in row.keys() else row["timestamp"]
-        data.append({
-            "t": ts,
-            "service": row["service"],
-            "down": row["bytes_down"],
-            "up": row["bytes_up"]
-        })
-    return data
-
-
 @app.get("/api/metrics")
 async def get_metrics(range: str = Query("1h"), seconds: int = Query(None, ge=60, le=7776000), username: str = Depends(get_current_username)):
     """Return time-series metrics for the given range or custom seconds."""
@@ -2140,30 +2379,64 @@ async def get_metrics(range: str = Query("1h"), seconds: int = Query(None, ge=60
                 "extra": json.loads(row["extra_json"]) if row["extra_json"] else {}
             } for row in rows]
         else:
-            # Return aggregated data
-            rows = conn.execute(f"""
-                SELECT
-                    CAST(timestamp / ? AS INTEGER) * ? AS bucket_ts,
-                    AVG(cpu_percent) AS cpu,
-                    AVG(ram_percent) AS ram,
-                    AVG(ram_used_gb) AS ram_used,
-                    MAX(ram_total_gb) AS ram_total,
-                    AVG(disk_percent) AS disk,
-                    AVG(disk_used_gb) AS disk_used,
-                    MAX(disk_total_gb) AS disk_total,
-                    AVG(net_sent_rate) AS net_sent,
-                    AVG(net_recv_rate) AS net_recv,
-                    (SELECT m2.conn_json FROM metrics m2
-                     WHERE CAST(m2.timestamp / ? AS INTEGER) = CAST(metrics.timestamp / ? AS INTEGER)
-                     ORDER BY m2.timestamp DESC LIMIT 1) AS conn_json,
-                    (SELECT m2.extra_json FROM metrics m2
-                     WHERE CAST(m2.timestamp / ? AS INTEGER) = CAST(metrics.timestamp / ? AS INTEGER)
-                     ORDER BY m2.timestamp DESC LIMIT 1) AS extra_json
-                FROM metrics
-                WHERE timestamp >= ?
-                GROUP BY bucket_ts
-                ORDER BY bucket_ts ASC
-            """, (bucket, bucket, bucket, bucket, bucket, bucket, cutoff)).fetchall()
+            # Return aggregated data (PostgreSQL optimized join with DISTINCT ON, SQLite standard query)
+            dsn = os.environ.get("MONITOR_DB_DSN")
+            if dsn:
+                rows = conn.execute("""
+                    SELECT 
+                        agg.bucket_ts,
+                        agg.cpu, agg.ram, agg.ram_used, agg.ram_total, agg.disk, agg.disk_used, agg.disk_total, agg.net_sent, agg.net_recv,
+                        latest.conn_json, latest.extra_json
+                    FROM (
+                        SELECT
+                            CAST(timestamp / ? AS INTEGER) * ? AS bucket_ts,
+                            AVG(cpu_percent) AS cpu,
+                            AVG(ram_percent) AS ram,
+                            AVG(ram_used_gb) AS ram_used,
+                            MAX(ram_total_gb) AS ram_total,
+                            AVG(disk_percent) AS disk,
+                            AVG(disk_used_gb) AS disk_used,
+                            MAX(disk_total_gb) AS disk_total,
+                            AVG(net_sent_rate) AS net_sent,
+                            AVG(net_recv_rate) AS net_recv
+                        FROM metrics
+                        WHERE timestamp >= ?
+                        GROUP BY bucket_ts
+                    ) agg
+                    LEFT JOIN (
+                        SELECT DISTINCT ON (bucket_ts)
+                            CAST(timestamp / ? AS INTEGER) * ? AS bucket_ts,
+                            conn_json, extra_json
+                        FROM metrics
+                        WHERE timestamp >= ?
+                        ORDER BY bucket_ts, timestamp DESC
+                    ) latest ON agg.bucket_ts = latest.bucket_ts
+                    ORDER BY agg.bucket_ts ASC
+                """, (bucket, bucket, cutoff, bucket, bucket, cutoff)).fetchall()
+            else:
+                rows = conn.execute("""
+                    SELECT
+                        CAST(timestamp / ? AS INTEGER) * ? AS bucket_ts,
+                        AVG(cpu_percent) AS cpu,
+                        AVG(ram_percent) AS ram,
+                        AVG(ram_used_gb) AS ram_used,
+                        MAX(ram_total_gb) AS ram_total,
+                        AVG(disk_percent) AS disk,
+                        AVG(disk_used_gb) AS disk_used,
+                        MAX(disk_total_gb) AS disk_total,
+                        AVG(net_sent_rate) AS net_sent,
+                        AVG(net_recv_rate) AS net_recv,
+                        (SELECT m2.conn_json FROM metrics m2
+                         WHERE CAST(m2.timestamp / ? AS INTEGER) = CAST(metrics.timestamp / ? AS INTEGER)
+                         ORDER BY m2.timestamp DESC LIMIT 1) AS conn_json,
+                        (SELECT m2.extra_json FROM metrics m2
+                         WHERE CAST(m2.timestamp / ? AS INTEGER) = CAST(metrics.timestamp / ? AS INTEGER)
+                         ORDER BY m2.timestamp DESC LIMIT 1) AS extra_json
+                    FROM metrics
+                    WHERE timestamp >= ?
+                    GROUP BY bucket_ts
+                    ORDER BY bucket_ts ASC
+                """, (bucket, bucket, bucket, bucket, bucket, bucket, cutoff)).fetchall()
 
             data = [{
                 "t": row["bucket_ts"],
@@ -2195,12 +2468,13 @@ async def get_metrics(range: str = Query("1h"), seconds: int = Query(None, ge=60
 
 
 # ─── Top Processes ───────────────────────────────────────────────────────────
-import threading
+# (threading already imported at top of file)
 
 _cached_top_procs = []
 
 def _update_top_processes_loop():
     global _cached_top_procs
+    cores = psutil.cpu_count() or 1
     while True:
         try:
             processes = []
@@ -2218,7 +2492,7 @@ def _update_top_processes_loop():
                             "pid": info['pid'],
                             "name": info['name'],
                             "user": info['username'] or 'unknown',
-                            "cpu": round(info['cpu_percent'], 1),
+                            "cpu": min(100.0, round(info['cpu_percent'] / cores, 1)),
                             "mem": mem_str,
                             "_mem_b": mem_b
                         })
@@ -2237,7 +2511,7 @@ def _update_top_processes_loop():
         except Exception as e:
             print("Top processes loop error:", e)
             
-        time.sleep(1)
+        time.sleep(5)
 
 # Start background thread
 _top_proc_thread = threading.Thread(target=_update_top_processes_loop, daemon=True)
@@ -2430,7 +2704,7 @@ import urllib.error
 import urllib.parse
 from fastapi import Response
 from fastapi.responses import StreamingResponse
-import websockets
+# websockets import removed (unused)
 
 @app.api_route("/browser", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"])
 @app.api_route("/browser/", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"])

@@ -17,6 +17,7 @@ A professional, real-time server monitoring dashboard with a high-performance ba
 - **X-UI V2Ray Integration**: Dynamically reads X-UI SQLite databases to show real-time user metrics, total limits, and unique active IPs without crashing the panel. Supports multiple X-UI forks (Sanaei, Alireza, 3x-ui).
 - **Universal OS Compatibility**: Intelligent installer automatically detects the OS (Ubuntu, Debian, CentOS, RHEL, AlmaLinux) and installs appropriate dependencies.
 - **🌐 Virtual Browser**: Secure, Docker-based Chromium browser accessible directly from the dashboard.
+- **Telegram Alerts & Interactive Bot**: Configure thresholds to receive warning notifications, get scheduled routine system health logs, and check the live status at any time using `/status` or the persistent **📊 Check Status** bot keyboard. Includes 3-hour dual-axis performance charts (CPU, RAM, Load Average) sent directly as photo reports.
 - **Beautiful UI**: Modern glassmorphic aesthetic with support for multiple premium themes (Dark, Light, Gruvbox, Nord, Cyberpunk, etc.).
 
 ## 🚀 Quick Installation
@@ -102,9 +103,17 @@ If you ever want to change your port or login credentials:
 2. Edit the variables inside the `environment:` section (e.g. change port to `8085`, username to `myuser`, password to `mypassword`).
 3. Save the file (`Ctrl+O`, `Enter`, `Ctrl+X`) and run:
    ```bash
-   cd /opt/server-monitor
-   docker compose up -d || docker-compose up -d
-   ```
+    cd /opt/server-monitor
+    docker compose up -d || docker-compose up -d
+    ```
+
+### 🔄 Updating Docker Installation
+To update your Docker container to the absolute latest version:
+```bash
+cd /opt/server-monitor
+docker compose pull || docker-compose pull
+docker compose up -d --remove-orphans || docker-compose up -d --remove-orphans
+```
 
 ### Accessing the Panel
 Open your browser and navigate to `http://your-server-ip:8080` (or whichever port you configured). Log in using your username and password.

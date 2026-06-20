@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=1.0.20">
+    <link rel="stylesheet" href="/static/style.css?v=1.0.22">
 </head>
 
 <body>
@@ -87,6 +87,14 @@
                             <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
                         </svg>
                         V2ray
+                    </button>
+                    <button class="telegram-btn" id="btnTelegramOpen" title="Telegram Alerts">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
+                            <path d="m22 2-7 20-4-9-9-4Z"/>
+                            <path d="M22 2 11 13"/>
+                        </svg>
+                        Telegram
                     </button>
                     <button class="settings-btn" id="btnSettingsOpen" title="Panel Settings" style="display: none;">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -413,7 +421,7 @@
                 </div>
                 <div class="refresh-info">
                     <span class="refresh-dot"></span>
-                    Auto-refresh every 1s
+                    Auto-refresh every 1m
                 </div>
             </div>
         </section>
@@ -445,6 +453,29 @@
                 </div>
                 <div class="chart-wrapper">
                     <canvas id="cpuChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card chart-card-load">
+                <div class="chart-header">
+                    <h3>Load Average</h3>
+                    <div class="chart-header-controls">
+                        <span class="chart-badge chart-badge-load" id="loadAvgBadge">Avg: — / — / —</span>
+                        <button class="btn-fullscreen" title="Toggle Fullscreen">
+                            <svg class="icon-expand" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                            </svg>
+                            <svg class="icon-compress" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                style="display:none;">
+                                <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="loadChart"></canvas>
                 </div>
             </div>
 
@@ -569,167 +600,6 @@
                     <canvas id="diskIopsChart"></canvas>
                 </div>
             </div>
-
-            <!-- Service Traffic Analyzer Card -->
-            <div class="chart-card chart-card-service full-width-card">
-                <div class="chart-header">
-                    <div class="service-header-title">
-                        <h3>⚡ Service Traffic Analyzer</h3>
-                        <p class="service-subtitle">Real-time throughput and historical volume by service</p>
-                    </div>
-                    <div class="chart-header-controls">
-                        <div class="smooth-control">
-                            <label for="serviceRangeSelect">Range:</label>
-                            <select id="serviceRangeSelect" class="iface-select">
-                                <option value="1h" selected>1 Hour</option>
-                                <option value="2h">2 Hours</option>
-                                <option value="6h">6 Hours</option>
-                                <option value="12h">12 Hours</option>
-                                <option value="1d">1 Day</option>
-                                <option value="2d">2 Days</option>
-                                <option value="1w">1 Week</option>
-                                <option value="1m">1 Month</option>
-                                <option value="custom">Custom...</option>
-                            </select>
-                        </div>
-                        <div id="serviceCustomRangeContainer" class="smooth-control" style="display:none; gap:4px; align-items:center;">
-                            <input type="number" id="serviceCustomRangeInput" class="iface-select" value="30" min="1" style="width:60px; text-align:center;">
-                            <select id="serviceCustomRangeUnit" class="iface-select">
-                                <option value="minutes" selected>Minutes</option>
-                                <option value="hours">Hours</option>
-                                <option value="days">Days</option>
-                            </select>
-                            <button id="serviceCustomRangeApply" class="iface-select" style="cursor:pointer; padding:4px 10px; font-weight:600;">✓</button>
-                        </div>
-                        <div class="smooth-control" title="Smooth noisy data with a moving average">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M2 12c2-4 6-4 8 0s6 4 8 0" />
-                            </svg>
-                            <label for="serviceSmoothLevel">Smooth:</label>
-                            <select id="serviceSmoothLevel" class="iface-select">
-                                <option value="0" selected>Off</option>
-                                <option value="3">Light</option>
-                                <option value="7">Medium</option>
-                                <option value="15">Heavy</option>
-                                <option value="30">Ultra</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Horizontal Service Tabs Slider -->
-                <div class="service-tabs-container">
-                    <div class="service-tabs">
-                        <button class="service-tab active" data-service="google">
-                            <span class="service-tab-icon"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg></span>
-                            <span class="service-tab-label">Google</span>
-                        </button>
-                        <button class="service-tab" data-service="apple">
-                            <span class="service-tab-icon"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" fill="currentColor"/></svg></span>
-                            <span class="service-tab-label">Apple</span>
-                        </button>
-                        <button class="service-tab" data-service="meta">
-                            <span class="service-tab-icon"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 2.04c-5.5 0-10 4.49-10 10.02 0 5 3.66 9.15 8.44 9.9v-7H7.9v-2.9h2.54V9.85c0-2.51 1.49-3.89 3.78-3.89 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.45 2.9h-2.33v7a10 10 0 008.44-9.9c0-5.53-4.5-10.02-10-10.02z" fill="#1877F2"/></svg></span>
-                            <span class="service-tab-label">Meta</span>
-                        </button>
-                        <button class="service-tab" data-service="openai">
-                            <span class="service-tab-icon"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.28 9.37a5.99 5.99 0 00-.52-4.93 6.07 6.07 0 00-6.55-2.93A6.05 6.05 0 0010.69 0a6.07 6.07 0 00-5.8 4.27 5.99 5.99 0 00-4 2.9 6.07 6.07 0 00.74 7.13 5.99 5.99 0 00.52 4.93 6.07 6.07 0 006.55 2.93A6.06 6.06 0 0013.31 24a6.07 6.07 0 005.8-4.27 6 6 0 004-2.9 6.07 6.07 0 00-.74-7.13l-.09-.33zm-8.97 13.2a4.53 4.53 0 01-2.91-1.06l.14-.08 4.84-2.8a.78.78 0 00.4-.68v-6.83l2.05 1.18a.07.07 0 01.04.06v5.66a4.56 4.56 0 01-4.56 4.55zm-9.78-4.18a4.52 4.52 0 01-.54-3.05l.14.09 4.84 2.8a.78.78 0 00.79 0l5.91-3.41v2.37a.08.08 0 01-.03.06l-4.9 2.82a4.56 4.56 0 01-6.21-1.68zm-1.27-10.56A4.52 4.52 0 014.63 5.5l-.01.16v5.59a.78.78 0 00.39.68l5.91 3.41-2.04 1.18a.07.07 0 01-.07 0l-4.89-2.83a4.56 4.56 0 01-1.66-6.24zM17.59 11.6l-5.91-3.41 2.05-1.18a.07.07 0 01.07 0l4.89 2.83a4.55 4.55 0 01-.7 8.22v-5.78a.79.79 0 00-.4-.68zm2.04-3.06l-.14-.09-4.84-2.8a.78.78 0 00-.79 0L7.95 9.07V6.7a.08.08 0 01.03-.07l4.9-2.82a4.55 4.55 0 016.75 4.73zM7.1 13.17l-2.04-1.18a.07.07 0 01-.04-.06V6.27a4.55 4.55 0 017.47-3.5l-.14.08-4.85 2.8a.78.78 0 00-.39.68l-.01 6.84zm1.11-2.4l2.63-1.52 2.63 1.52v3.03l-2.63 1.52-2.63-1.52V10.77z" fill="currentColor"/></svg></span>
-                            <span class="service-tab-label">OpenAI</span>
-                        </button>
-                        <button class="service-tab" data-service="spotify">
-                            <span class="service-tab-icon"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.52 17.34c-.24.36-.66.48-1.02.24-2.82-1.74-6.36-2.1-10.56-1.14-.42.12-.78-.18-.9-.54-.12-.42.18-.78.54-.9 4.56-1.02 8.52-.6 11.7 1.32.42.18.48.66.24 1.02zm1.44-3.3c-.3.42-.84.6-1.26.3-3.24-1.98-8.16-2.58-11.94-1.38-.48.12-.99-.12-1.14-.6-.12-.48.12-.99.6-1.14 4.38-1.32 9.78-.66 13.5 1.62.36.18.54.78.24 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.3c-.6.18-1.2-.18-1.38-.72-.18-.6.18-1.2.72-1.38 4.26-1.26 11.28-1.02 15.72 1.62.54.3.72 1.02.42 1.56-.3.42-1.02.6-1.56.3z" fill="#1DB954"/></svg></span>
-                            <span class="service-tab-label">Spotify</span>
-                        </button>
-
-                        <button class="service-tab" data-service="telegram">
-                            <span class="service-tab-icon"><svg width="18" height="18" viewBox="0 0 24 24"><path fill="#2AABEE" d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.14.18-.357.223-.548.223l.188-2.85 5.18-4.686c.223-.195-.054-.282-.346-.086l-6.4 4.025-2.76-.86c-.6-.188-.61-.594.126-.882l10.81-4.168c.5-.188.943.106.79.816z"/></svg></span>
-                            <span class="service-tab-label">Telegram</span>
-                        </button>
-                        <button class="service-tab" data-service="twitter">
-                            <span class="service-tab-icon"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" fill="currentColor"/></svg></span>
-                            <span class="service-tab-label">Twitter / X</span>
-                        </button>
-                        <button class="service-tab" data-service="tiktok">
-                            <span class="service-tab-icon"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 15.71a6.34 6.34 0 006.33 6.34 6.35 6.35 0 006.33-6.26V9.28a8.3 8.3 0 004.34 1.22V7.05a4.8 4.8 0 01-2.41-.36z" fill="currentColor"/></svg></span>
-                            <span class="service-tab-label">TikTok</span>
-                        </button>
-                        <button class="service-tab" data-service="discord">
-                            <span class="service-tab-icon"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" fill="#5865F2"/></svg></span>
-                            <span class="service-tab-label">Discord</span>
-                        </button>
-                        <button class="service-tab" data-service="microsoft">
-                            <span class="service-tab-icon"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M11.4 24H0V12.6h11.4V24zM24 24H12.6V12.6H24V24zM11.4 11.4H0V0h11.4v11.4zm12.6 0H12.6V0H24v11.4z" fill="#00A4EF"/></svg></span>
-                            <span class="service-tab-label">Microsoft</span>
-                        </button>
-                        <button class="service-tab" data-service="steam">
-                            <span class="service-tab-icon"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M11.979 0C5.673 0 .511 4.86.022 11.037l7.422 3.076c.712-1.22 2.05-2.039 3.593-2.039 1.054 0 2.008.398 2.748 1.05l3.81-5.412v-.223c0-3.321-2.692-6.012-6.014-6.012zm0 2.126c2.146 0 3.886 1.74 3.886 3.886 0 2.145-1.74 3.886-3.886 3.886-2.145 0-3.886-1.74-3.886-3.886 0-2.146 1.74-3.886 3.886-3.886zm-5.02 11.39l-6.953-2.88c-.006.12-.006.23-.006.35 0 6.626 5.372 11.998 11.998 11.998 5.768 0 10.597-4.062 11.758-9.48L15.3 10.97c-.83 2.039-2.81 3.479-5.183 3.479-2.316 0-4.25-1.378-5.132-3.351L2.096 15.65c.677 1.258 1.583 2.378 2.656 3.328l2.207-3.464zm4.085 1.53c1.558 0 2.825-1.268 2.825-2.825 0-1.559-1.267-2.826-2.825-2.826-1.559 0-2.826 1.267-2.826 2.826 0 1.557 1.267 2.825 2.826 2.825z" fill="currentColor"/></svg></span>
-                            <span class="service-tab-label">Steam</span>
-                        </button>
-                        <button class="service-tab" data-service="snapchat">
-                            <span class="service-tab-icon"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M12.01 0c-1.34 0-2.9.22-4.14.65C6 1.3 5 2.59 5 4.09c0 .7.12 1.3.34 1.8.2.47.51.84.9 1.13.68.51 1.62.77 2.79.77.34 0 .7-.03 1.05-.08a3.17 3.17 0 0 0-1.83.6c-1.23.95-1.63 2.39-1.12 4.08.33 1.1 1.2 1.83 2.45 2.05v.2a2.3 2.3 0 0 1-.95 1.87c-.8.57-1.85.83-3.05.74-.13-.01-.27-.03-.4-.05a.8.8 0 0 0-.58.15c-.24.18-.36.47-.35.77.03.65.65 1.07 1.57 1.07.13 0 .28-.01.44-.02 1.7-.12 3.86-.3 5.48.96l.16.13c.03.02.06.05.08.08l.01.01.01.01.01.01v.01c0 .01.01.01.01.02.01.01.01.01.01.02l.01.01.01.02v.01c0 .01.01.02.01.02l.01.02c0 .01.01.01.01.02.01.01.01.02.01.03l.01.02c.01.02.01.04.02.06.01.04.02.09.02.14v.04c0 .24-.07.49-.2.72-.12.21-.29.41-.5.58A6.33 6.33 0 0 1 7.15 23a.75.75 0 0 0-.3.4c-.1.32.02.66.3.83.2.12.44.17.68.17.47 0 .97-.13 1.48-.38 1.43-.7 3.03-2.18 3.52-2.73.49.55 2.1 2.04 3.53 2.74.52.25 1.01.38 1.48.38.25 0 .48-.05.68-.17.28-.17.4-.51.3-.83a.75.75 0 0 0-.3-.4 6.33 6.33 0 0 1-4.14-1.25c-.2-.17-.38-.37-.5-.58a1.5 1.5 0 0 1-.2-.72v-.04c0-.05.01-.1.02-.14.01-.02.01-.04.02-.06l.01-.02c0-.01.01-.02.01-.03 0-.01.01-.02.01-.02 0-.01.01-.02.01-.02v-.01l.01-.02 0-.01.01-.02 0-.01.01-.02v-.01l.01-.01.01-.01.01-.01.08-.08.16-.13c1.62-1.26 3.78-1.08 5.48-.96.16.01.31.02.44.02.92 0 1.54-.42 1.57-1.07.01-.3-.11-.59-.35-.77a.8.8 0 0 0-.58-.15c-.13.02-.27.04-.4.05-1.2.09-2.25-.17-3.05-.74a2.3 2.3 0 0 1-.95-1.87v-.2c1.25-.22 2.12-.95 2.45-2.05.51-1.69.11-3.13-1.12-4.08a3.17 3.17 0 0 0-1.83-.6c.35.05.71.08 1.05.08 1.17 0 2.11-.26 2.79-.77.39-.29.7-.66.9-1.13.22-.5.34-1.1.34-1.8 0-1.5-1-2.8-2.87-3.44C14.9 .22 13.35 0 12.01 0z" fill="#FFFC00"/></svg></span>
-                            <span class="service-tab-label">Snapchat</span>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Google Sub-services Sub-tabs -->
-                <div class="sub-service-tabs-container" id="googleSubTabs">
-                    <div class="sub-service-tabs">
-                        <button class="sub-service-tab active" data-sub="google">
-                            <span class="sub-tab-icon"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg></span>
-                            <span class="sub-tab-label">Google Total</span>
-                        </button>
-
-                        <button class="sub-service-tab" data-sub="google_youtube">
-                            <span class="sub-tab-icon"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M23.5 6.19a3.02 3.02 0 00-2.12-2.14C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.38.55A3.02 3.02 0 00.5 6.19 31.57 31.57 0 000 12a31.57 31.57 0 00.5 5.81 3.02 3.02 0 002.12 2.14c1.87.55 9.38.55 9.38.55s7.5 0 9.38-.55a3.02 3.02 0 002.12-2.14A31.57 31.57 0 0024 12a31.57 31.57 0 00-.5-5.81z" fill="#FF0000"/><path d="M9.55 15.5l6.27-3.5-6.27-3.5v7z" fill="#fff"/></svg></span>
-                            <span class="sub-tab-label">YouTube</span>
-                        </button>
-                        <button class="sub-service-tab" data-sub="google_play">
-                            <span class="sub-tab-icon"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M3.61 1.81L13.42 12 3.6 22.19c-.36-.31-.6-.79-.6-1.35V3.16c0-.56.24-1.04.6-1.35z" fill="#4285F4"/><path d="M17 8.44L5.4.73c-.45-.26-.96-.35-1.43-.27L13.42 12 17 8.44z" fill="#34A853"/><path d="M17 15.56L13.42 12l3.58-3.56 4.09 2.36c.72.41.72 1.08 0 1.49L17 15.56z" fill="#FBBC05"/><path d="M3.97 23.46c.47.08.98 0 1.43-.27L17 15.56 13.42 12 3.97 23.46z" fill="#EA4335"/></svg></span>
-                            <span class="sub-tab-label">Play Store</span>
-                        </button>
-                        <button class="sub-service-tab" data-sub="google_ai">
-                            <span class="sub-tab-icon"><svg width="14" height="14" viewBox="0 0 28 28" fill="none"><path d="M14 0C14 0 14 14 0 14C14 14 14 28 14 28C14 28 14 14 28 14C14 14 14 0 14 0Z" fill="url(#gm)"/><defs><linearGradient id="gm" x1="0" y1="0" x2="28" y2="28"><stop stop-color="#4285F4"/><stop offset=".5" stop-color="#9B72CB"/><stop offset="1" stop-color="#D96570"/></linearGradient></defs></svg></span>
-                            <span class="sub-tab-label">Gemini AI</span>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Real-time Stats Grid -->
-                <div class="service-stats-grid">
-                    <div class="service-stat-card down-stat">
-                        <span class="stat-lbl">Download Speed</span>
-                        <div class="stat-val" id="serviceDownSpeed">0.00 Mbps</div>
-                        <span class="stat-indicator down-color">● Live</span>
-                    </div>
-                    <div class="service-stat-card up-stat">
-                        <span class="stat-lbl">Upload Speed</span>
-                        <div class="stat-val" id="serviceUpSpeed">0.00 Mbps</div>
-                        <span class="stat-indicator up-color">● Live</span>
-                    </div>
-                    <div class="service-stat-card total-payload-stat">
-                        <span class="stat-lbl">Accumulated Payload</span>
-                        <div class="stat-val" id="serviceTotalPayload">0.00 MB</div>
-                        <span class="stat-indicator payload-color">📊 Cumulative</span>
-                    </div>
-                </div>
-
-                <!-- Charts layout -->
-                <div class="service-charts-layout">
-                    <div class="service-chart-box">
-                        <div class="service-chart-title">Real-time Throughput (Mbps)</div>
-                        <div class="chart-wrapper">
-                            <canvas id="serviceThroughputChart"></canvas>
-                        </div>
-                    </div>
-                    <div class="service-chart-box">
-                        <div class="service-chart-title">Cumulative Payload Over Time</div>
-                        <div class="chart-wrapper">
-                            <canvas id="servicePayloadChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </section>
 
         <!-- Top Processes Area -->
@@ -750,10 +620,9 @@
                     </div>
                     <div class="ext-actions">
                         <select id="topProcRefresh" class="iface-select" title="Refresh Interval">
-                            <option value="1000" selected>1 Second</option>
-                            <option value="2000">2 Seconds</option>
-                            <option value="5000">5 Seconds</option>
+                            <option value="5000" selected>5 Seconds</option>
                             <option value="10000">10 Seconds</option>
+                            <option value="20000">20 Seconds</option>
                         </select>
                     </div>
                 </div>
@@ -819,6 +688,88 @@
         </footer>
     </div>
 
+    <!-- Telegram Alerts Overlay -->
+    <div id="telegramOverlay" class="login-overlay hidden">
+        <div class="login-box telegram-modal-box">
+            <button id="closeTelegram" class="btn-close-overlay">×</button>
+            <div class="login-header" style="margin-bottom: 20px;">
+                <h2 style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #0088cc;">
+                        <path d="m22 2-7 20-4-9-9-4Z"/>
+                        <path d="M22 2 11 13"/>
+                    </svg>
+                    Telegram Alerts
+                </h2>
+                <p>Configure automated notifications & threshold alerts</p>
+            </div>
+            
+            <div class="telegram-form" style="display: flex; flex-direction: column; gap: 15px;">
+                <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
+                    <label for="tgBotToken" style="font-size: 0.82rem; font-weight: 500; color: var(--text-secondary);">Bot Token (from @BotFather)</label>
+                    <input type="text" id="tgBotToken" placeholder="e.g. 1234567890:ABCdefGhIJKlmNoPQRsTUVwxyZ" style="width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-size: 0.9rem; outline: none;">
+                </div>
+                
+                <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
+                    <label for="tgChatId" style="font-size: 0.82rem; font-weight: 500; color: var(--text-secondary);">User / Chat ID</label>
+                    <input type="text" id="tgChatId" placeholder="e.g. 987654321" style="width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-size: 0.9rem; outline: none;">
+                </div>
+
+                <div style="border-top: 1px solid var(--border-color); margin: 5px 0; padding-top: 15px;">
+                    <h3 style="font-size: 0.95rem; font-weight: 500; margin-bottom: 12px; color: var(--text-primary);">Automatic Reports</h3>
+                    <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
+                        <label for="tgInterval" style="font-size: 0.82rem; font-weight: 500; color: var(--text-secondary);">Report Interval</label>
+                        <select id="tgInterval" class="iface-select" style="width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-size: 0.9rem; outline: none; height: auto;">
+                            <option value="0">Disabled</option>
+                            <option value="1">Every 1 Hour</option>
+                            <option value="2">Every 2 Hours</option>
+                            <option value="4">Every 4 Hours</option>
+                            <option value="6">Every 6 Hours</option>
+                            <option value="12">Every 12 Hours</option>
+                            <option value="24">Every 24 Hours</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
+                        <input type="checkbox" id="tgSendGraph" style="width: 16px; height: 16px; cursor: pointer;">
+                        <label for="tgSendGraph" style="font-size: 0.85rem; font-weight: 500; color: var(--text-secondary); cursor: pointer; user-select: none;">
+                            Send 3-Hour Performance Graph with Reports
+                        </label>
+                    </div>
+                </div>
+
+                <div style="border-top: 1px solid var(--border-color); margin: 5px 0; padding-top: 15px;">
+                    <h3 style="font-size: 0.95rem; font-weight: 500; margin-bottom: 12px; color: var(--text-primary);">Threshold Alerts</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
+                            <label for="tgCpuTh" style="font-size: 0.82rem; font-weight: 500; color: var(--text-secondary);">CPU Threshold (%)</label>
+                            <input type="number" id="tgCpuTh" placeholder="e.g. 90 (0 to disable)" min="0" max="100" style="width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-size: 0.9rem; outline: none;">
+                        </div>
+                        <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
+                            <label for="tgRamTh" style="font-size: 0.82rem; font-weight: 500; color: var(--text-secondary);">RAM Threshold (%)</label>
+                            <input type="number" id="tgRamTh" placeholder="e.g. 85 (0 to disable)" min="0" max="100" style="width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-size: 0.9rem; outline: none;">
+                        </div>
+                        <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
+                            <label for="tgLoadTh" style="font-size: 0.82rem; font-weight: 500; color: var(--text-secondary);">Load Avg 1m Threshold</label>
+                            <input type="number" id="tgLoadTh" placeholder="e.g. 4.0 (0 to disable)" min="0" step="0.1" style="width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-size: 0.9rem; outline: none;">
+                        </div>
+                        <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
+                            <label for="tgDiskTh" style="font-size: 0.82rem; font-weight: 500; color: var(--text-secondary);">Disk Threshold (%)</label>
+                            <input type="number" id="tgDiskTh" placeholder="e.g. 95 (0 to disable)" min="0" max="100" style="width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-size: 0.9rem; outline: none;">
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 12px; margin-top: 10px;">
+                    <button id="btnTelegramTest" class="ssh-btn" style="flex: 1; border: none; cursor: pointer; justify-content: center; height: 40px; font-weight: 500;">
+                        Send Test Message
+                    </button>
+                    <button id="btnTelegramSave" class="ssh-btn" style="flex: 1; border: none; cursor: pointer; justify-content: center; height: 40px; background: linear-gradient(135deg, #0088cc, #00a2ed); color: white; font-weight: 500;">
+                        Save Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- V2ray Monitor Overlay -->
     <div id="v2rayOverlay" class="login-overlay hidden">
         <div class="login-box v2ray-modal-box">
@@ -843,7 +794,7 @@
                         <circle cx="12" cy="12" r="10"></circle>
                         <polyline points="12 6 12 12 16 14"></polyline>
                     </svg>
-                    Sync: <span id="v2rayTimer" style="font-weight: bold; color: #6366f1;">5s</span>
+                    Sync: <span id="v2rayTimer" style="font-weight: bold; color: #6366f1;">60s</span>
                 </div>
             </div>
             
@@ -1162,8 +1113,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script
         src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-    <script src="/static/app.js?v=1.0.25"></script>
-    <script src="/static/service_analyzer.js?v=1.0.25"></script>
+    <script src="/static/app.js?v=1.0.27"></script>
+
 </body>
 
 </html>
