@@ -634,6 +634,12 @@ class MetricsCollector:
         self._running = False
         self._thread = None
         self.last_alerts = {"cpu": 0.0, "ram": 0.0, "load": 0.0, "disk": 0.0}
+        self._tg_bot_token = None
+        self._tg_chat_id = None
+        self._tg_interval_hours = 0
+        self._tg_last_routine_sent = 0.0
+        self._tg_send_graph = 0
+        self._tg_last_config_query_time = 0.0
 
     def start(self):
         self._prev_net = _get_default_nic_counters()
@@ -649,12 +655,18 @@ class MetricsCollector:
         self._running = False
 
     def _run(self):
+        last_collect = 0.0
         while self._running:
             try:
-                self._collect()
+                now = time.time()
+                if now - last_collect >= COLLECT_INTERVAL:
+                    self._collect()
+                    last_collect = now
+                
+                self._check_telegram_routine(now)
             except Exception as e:
-                print(f"[Collector Error] {e}")
-            time.sleep(COLLECT_INTERVAL)
+                print(f"[Collector Loop Error] {e}")
+            time.sleep(1)
 
     def _run_telegram_polling(self):
         import time
@@ -841,7 +853,7 @@ class MetricsCollector:
 
         with get_db() as conn:
             row = conn.execute("""
-                SELECT bot_token, chat_id, interval_hours, cpu_threshold, ram_threshold, load_threshold, disk_threshold, last_routine_sent, send_graph
+                SELECT bot_token, chat_id, cpu_threshold, ram_threshold, load_threshold, disk_threshold
                 FROM telegram_config
                 WHERE id = 1
             """).fetchone()
@@ -851,13 +863,10 @@ class MetricsCollector:
 
             bot_token = row["bot_token"]
             chat_id = row["chat_id"]
-            interval_hours = row["interval_hours"]
             cpu_th = row["cpu_threshold"]
             ram_th = row["ram_threshold"]
             load_th = row["load_threshold"]
             disk_th = row["disk_threshold"]
-            last_routine_sent = row["last_routine_sent"]
-            send_graph = row["send_graph"]
 
         # 1. Check Alert Thresholds
         alerts_triggered = []
@@ -893,36 +902,77 @@ class MetricsCollector:
             except Exception as e:
                 print(f"[Telegram Alert Error] {e}")
 
-        # 2. Check Routine Update
-        if interval_hours != 0:
-            # If negative, treat as minutes
-            interval_seconds = abs(interval_hours) * 60 if interval_hours < 0 else interval_hours * 3600
-            
-            if last_routine_sent == 0.0:
-                # Set last_routine_sent so it dispatches immediately on the next background loop run
+    def _check_telegram_routine(self, now):
+        # Update config cache every 5 seconds
+        if now - self._tg_last_config_query_time >= 5:
+            try:
                 with get_db() as conn:
-                    conn.execute("UPDATE telegram_config SET last_routine_sent = ? WHERE id = 1", (now - interval_seconds,))
-            elif now - last_routine_sent >= interval_seconds:
-                msg = build_telegram_stats_message(now, cpu, ram_percent, disk_percent, load_avg)
-                try:
-                    if send_graph == 1:
-                        import tempfile
-                        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-                            graph_path = tmp.name
+                    row = conn.execute("""
+                        SELECT bot_token, chat_id, interval_hours, last_routine_sent, send_graph
+                        FROM telegram_config
+                        WHERE id = 1
+                    """).fetchone()
+                    if row:
+                        self._tg_bot_token = row["bot_token"]
+                        self._tg_chat_id = row["chat_id"]
+                        self._tg_interval_hours = row["interval_hours"]
+                        self._tg_last_routine_sent = row["last_routine_sent"]
+                        self._tg_send_graph = row["send_graph"]
+                self._tg_last_config_query_time = now
+            except Exception as dbe:
+                print(f"[Telegram Cache Query Error] {dbe}")
+
+        bot_token = self._tg_bot_token
+        chat_id = self._tg_chat_id
+        interval_hours = self._tg_interval_hours
+        last_routine_sent = self._tg_last_routine_sent
+        send_graph = self._tg_send_graph
+
+        if not bot_token or not chat_id or interval_hours == 0:
+            return
+
+        interval_seconds = abs(interval_hours) * 60 if interval_hours < 0 else interval_hours * 3600
+
+        if last_routine_sent == 0.0:
+            with get_db() as conn:
+                conn.execute("UPDATE telegram_config SET last_routine_sent = ? WHERE id = 1", (now - interval_seconds,))
+            self._tg_last_routine_sent = now - interval_seconds
+        elif now - last_routine_sent >= interval_seconds:
+            cpu = psutil.cpu_percent()
+            ram_percent = psutil.virtual_memory().percent
+            disk_percent = psutil.disk_usage("/").percent
+            try:
+                load_avg = os.getloadavg()
+            except (AttributeError, OSError):
+                load_avg = (0.0, 0.0, 0.0)
+                
+            msg = build_telegram_stats_message(now, cpu, ram_percent, disk_percent, load_avg)
+            try:
+                if send_graph == 1:
+                    import tempfile
+                    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                        graph_path = tmp.name
+                    try:
+                        generate_3h_graph(graph_path)
+                        send_telegram_photo(bot_token, chat_id, graph_path, msg)
+                    finally:
                         try:
-                            generate_3h_graph(graph_path)
-                            send_telegram_photo(bot_token, chat_id, graph_path, msg)
-                        finally:
-                            try:
-                                os.unlink(graph_path)
-                            except Exception:
-                                pass
-                    else:
-                        send_telegram_message(bot_token, chat_id, msg)
-                    with get_db() as conn:
-                        conn.execute("UPDATE telegram_config SET last_routine_sent = ? WHERE id = 1", (now,))
-                except Exception as e:
-                    print(f"[Telegram Routine Error] {e}")
+                            os.unlink(graph_path)
+                        except Exception:
+                            pass
+                else:
+                    send_telegram_message(bot_token, chat_id, msg)
+                
+                # Align exact next run
+                aligned_time = last_routine_sent + interval_seconds
+                if now - aligned_time > interval_seconds:
+                    aligned_time = now
+                    
+                with get_db() as conn:
+                    conn.execute("UPDATE telegram_config SET last_routine_sent = ? WHERE id = 1", (aligned_time,))
+                self._tg_last_routine_sent = aligned_time
+            except Exception as e:
+                print(f"[Telegram Routine Error] {e}")
 
 
 # ─── Network Interface Detection ─────────────────────────────────────────────
