@@ -398,7 +398,7 @@ def send_telegram_message(bot_token: str, chat_id: str, text: str):
         print(f"[Telegram Alert Error] {e}")
         raise e
 
-def generate_custom_graph(image_path: str, hours: int = 3):
+def generate_system_graph(image_path: str, hours: int = 3):
     import sqlite3
     import time
     import json
@@ -415,14 +415,14 @@ def generate_custom_graph(image_path: str, hours: int = 3):
     timestamps = []
     cpu_vals = []
     ram_vals = []
-    load_vals = []
-    net_up_vals = []
-    net_down_vals = []
+    load_1m_vals = []
+    load_5m_vals = []
+    load_15m_vals = []
     
     try:
         with get_db() as conn:
             cursor = conn.execute("""
-                SELECT timestamp, cpu_percent, ram_percent, net_sent_rate, net_recv_rate, extra_json 
+                SELECT timestamp, cpu_percent, ram_percent, extra_json 
                 FROM metrics 
                 WHERE timestamp >= ? 
                 ORDER BY timestamp ASC
@@ -434,24 +434,26 @@ def generate_custom_graph(image_path: str, hours: int = 3):
                 cpu_vals.append(row["cpu_percent"])
                 ram_vals.append(row["ram_percent"])
                 
-                # Convert bytes/sec rate to Mbps
-                net_up = (row["net_sent_rate"] * 8) / 10**6
-                net_down = (row["net_recv_rate"] * 8) / 10**6
-                net_up_vals.append(net_up)
-                net_down_vals.append(net_down)
-                
-                load_val = 0.0
+                load_1m = 0.0
+                load_5m = 0.0
+                load_15m = 0.0
                 try:
                     extra = json.loads(row["extra_json"] or "{}")
-                    if "load_avg" in extra and isinstance(extra["load_avg"], list) and len(extra["load_avg"]) > 0:
-                        load_val = extra["load_avg"][0]
+                    if "load_avg" in extra and isinstance(extra["load_avg"], list):
+                        l_avg = extra["load_avg"]
+                        if len(l_avg) > 0: load_1m = l_avg[0]
+                        if len(l_avg) > 1: load_5m = l_avg[1]
+                        if len(l_avg) > 2: load_15m = l_avg[2]
                 except Exception:
                     pass
-                load_vals.append(load_val)
+                load_1m_vals.append(load_1m)
+                load_5m_vals.append(load_5m)
+                load_15m_vals.append(load_15m)
     except Exception as dbe:
-        print(f"[Graph Generation DB Error] {dbe}")
+        print(f"[System Graph DB Error] {dbe}")
             
     if not timestamps:
+        plt.style.use('default')
         fig, ax = plt.subplots(figsize=(8, 4))
         ax.text(0.5, 0.5, "No metrics collected yet", horizontalalignment='center', verticalalignment='center')
         plt.savefig(image_path, dpi=100)
@@ -459,34 +461,37 @@ def generate_custom_graph(image_path: str, hours: int = 3):
         return
 
     try:
-        # figsize=(10, 5.2) and dpi=200 gives HD resolution 2000x1040 pixels
+        plt.style.use('dark_background')
         fig, ax1 = plt.subplots(figsize=(10, 5.2), dpi=200)
-        plt.title(f"Server Performance - Last {hours} Hours", fontsize=12, fontweight='bold', pad=12)
+        fig.patch.set_facecolor('#0f172a') # Slate 900
+        ax1.set_facecolor('#1e293b') # Slate 800
+        
+        plt.title(f"System Resources - Last {hours} Hours", fontsize=12, fontweight='bold', pad=12, color='#f8fafc')
         
         # Grid
-        ax1.grid(True, linestyle='--', alpha=0.5)
+        ax1.grid(True, linestyle='--', color='#334155', alpha=0.5)
         
         # Plot CPU & RAM on left y-axis
         line_cpu, = ax1.plot(timestamps, cpu_vals, label="CPU (%)", color="#3b82f6", linewidth=1.5)
         line_ram, = ax1.plot(timestamps, ram_vals, label="RAM (%)", color="#10b981", linewidth=1.5)
-        ax1.set_ylabel("Usage (%)", color="#4b5563", fontsize=9)
+        ax1.set_ylabel("Usage (%)", color="#94a3b8", fontsize=9)
         ax1.set_ylim(-2, 102)
-        ax1.tick_params(axis='y', labelcolor="#4b5563", labelsize=8)
+        ax1.tick_params(axis='y', labelcolor="#94a3b8", labelsize=8)
         
-        # Plot Load Average and Network Rates (Mbps) on right y-axis
+        # Plot Load Average on right y-axis
         ax2 = ax1.twinx()
-        line_load, = ax2.plot(timestamps, load_vals, label="Load Avg (1m)", color="#f43f5e", linewidth=1.5, linestyle=':')
-        line_up, = ax2.plot(timestamps, net_up_vals, label="Upload (Mbps)", color="#f59e0b", linewidth=1.2, linestyle='-.')
-        line_down, = ax2.plot(timestamps, net_down_vals, label="Download (Mbps)", color="#8b5cf6", linewidth=1.2, linestyle='--')
+        line_load_1m, = ax2.plot(timestamps, load_1m_vals, label="Load Avg (1m)", color="#f43f5e", linewidth=1.2, linestyle=':')
+        line_load_5m, = ax2.plot(timestamps, load_5m_vals, label="Load Avg (5m)", color="#ec4899", linewidth=1.2, linestyle='--')
+        line_load_15m, = ax2.plot(timestamps, load_15m_vals, label="Load Avg (15m)", color="#a855f7", linewidth=1.2, linestyle='-.')
         
-        ax2.set_ylabel("Load Avg / Network Speed (Mbps)", color="#4b5563", fontsize=9)
-        max_right = max(
-            max(load_vals) if load_vals else 1.0,
-            max(net_up_vals) if net_up_vals else 1.0,
-            max(net_down_vals) if net_down_vals else 1.0
+        ax2.set_ylabel("Load Average", color="#94a3b8", fontsize=9)
+        max_load = max(
+            max(load_1m_vals) if load_1m_vals else 1.0,
+            max(load_5m_vals) if load_5m_vals else 1.0,
+            max(load_15m_vals) if load_15m_vals else 1.0
         )
-        ax2.set_ylim(-0.1, max(max_right * 1.2, 1.0))
-        ax2.tick_params(axis='y', labelcolor="#4b5563", labelsize=8)
+        ax2.set_ylim(-0.1, max(max_load * 1.2, 1.0))
+        ax2.tick_params(axis='y', labelcolor="#94a3b8", labelsize=8)
         
         # Format x-axis time based on requested duration
         ax1.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
@@ -497,27 +502,124 @@ def generate_custom_graph(image_path: str, hours: int = 3):
         else:
             ax1.xaxis.set_major_locator(mdates.HourLocator(interval=4))
             
-        ax1.tick_params(axis='x', labelsize=8)
+        ax1.tick_params(axis='x', labelcolor="#94a3b8", labelsize=8)
         fig.autofmt_xdate()
         
         # Combined Legend
-        lines = [line_cpu, line_ram, line_load, line_up, line_down]
+        lines = [line_cpu, line_ram, line_load_1m, line_load_5m, line_load_15m]
         labels = [l.get_label() for l in lines]
-        ax1.legend(lines, labels, loc="upper left", fontsize=8)
+        ax1.legend(lines, labels, loc="upper left", fontsize=8, facecolor='#1e293b', edgecolor='#334155')
         
         plt.tight_layout()
-        plt.savefig(image_path)
+        plt.savefig(image_path, facecolor=fig.get_facecolor(), edgecolor='none')
         plt.close()
     except Exception as pe:
-        print(f"[Graph Plotting Error] {pe}")
+        print(f"[System Graph Plotting Error] {pe}")
+        plt.style.use('default')
         fig, ax = plt.subplots(figsize=(8, 4))
         ax.text(0.5, 0.5, f"Error rendering graph: {pe}", horizontalalignment='center', verticalalignment='center')
         plt.savefig(image_path, dpi=100)
         plt.close()
 
+def generate_network_graph(image_path: str, hours: int = 3):
+    import sqlite3
+    import time
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    import matplotlib.dates as mdates
+    from datetime import datetime
+    
+    # Query last N hours
+    now = time.time()
+    cutoff_time = now - hours * 3600
+    
+    timestamps = []
+    net_up_vals = []
+    net_down_vals = []
+    
+    try:
+        with get_db() as conn:
+            cursor = conn.execute("""
+                SELECT timestamp, net_sent_rate, net_recv_rate 
+                FROM metrics 
+                WHERE timestamp >= ? 
+                ORDER BY timestamp ASC
+            """, (cutoff_time,))
+            
+            for row in cursor.fetchall():
+                ts = row["timestamp"]
+                timestamps.append(datetime.fromtimestamp(ts))
+                
+                # Convert bytes/sec rate to Mbps
+                net_up = (row["net_sent_rate"] * 8) / 10**6
+                net_down = (row["net_recv_rate"] * 8) / 10**6
+                net_up_vals.append(net_up)
+                net_down_vals.append(net_down)
+    except Exception as dbe:
+        print(f"[Network Graph DB Error] {dbe}")
+            
+    if not timestamps:
+        plt.style.use('default')
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.text(0.5, 0.5, "No metrics collected yet", horizontalalignment='center', verticalalignment='center')
+        plt.savefig(image_path, dpi=100)
+        plt.close()
+        return
+
+    try:
+        plt.style.use('dark_background')
+        fig, ax1 = plt.subplots(figsize=(10, 5.2), dpi=200)
+        fig.patch.set_facecolor('#0f172a') # Slate 900
+        ax1.set_facecolor('#1e293b') # Slate 800
+        
+        plt.title(f"Network Traffic - Last {hours} Hours", fontsize=12, fontweight='bold', pad=12, color='#f8fafc')
+        
+        # Grid
+        ax1.grid(True, linestyle='--', color='#334155', alpha=0.5)
+        
+        # Plot Network Rates (Mbps) on Y-axis
+        line_down, = ax1.plot(timestamps, net_down_vals, label="Download (Mbps)", color="#8b5cf6", linewidth=1.5)
+        line_up, = ax1.plot(timestamps, net_up_vals, label="Upload (Mbps)", color="#f59e0b", linewidth=1.5)
+        
+        ax1.set_ylabel("Speed (Mbps)", color="#94a3b8", fontsize=9)
+        max_rate = max(
+            max(net_up_vals) if net_up_vals else 1.0,
+            max(net_down_vals) if net_down_vals else 1.0
+        )
+        ax1.set_ylim(-0.1, max(max_rate * 1.2, 1.0))
+        ax1.tick_params(axis='y', labelcolor="#94a3b8", labelsize=8)
+        
+        # Format x-axis time based on requested duration
+        ax1.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        if hours <= 3:
+            ax1.xaxis.set_major_locator(mdates.MinuteLocator(interval=30))
+        elif hours <= 12:
+            ax1.xaxis.set_major_locator(mdates.HourLocator(interval=2))
+        else:
+            ax1.xaxis.set_major_locator(mdates.HourLocator(interval=4))
+            
+        ax1.tick_params(axis='x', labelcolor="#94a3b8", labelsize=8)
+        fig.autofmt_xdate()
+        
+        ax1.legend(handles=[line_down, line_up], loc="upper left", fontsize=8, facecolor='#1e293b', edgecolor='#334155')
+        
+        plt.tight_layout()
+        plt.savefig(image_path, facecolor=fig.get_facecolor(), edgecolor='none')
+        plt.close()
+    except Exception as pe:
+        print(f"[Network Graph Plotting Error] {pe}")
+        plt.style.use('default')
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.text(0.5, 0.5, f"Error rendering graph: {pe}", horizontalalignment='center', verticalalignment='center')
+        plt.savefig(image_path, dpi=100)
+        plt.close()
+
+def generate_custom_graph(image_path: str, hours: int = 3):
+    generate_system_graph(image_path, hours)
+
 def generate_3h_graph(image_path: str):
-    """Wrapper for backward compatibility."""
-    generate_custom_graph(image_path, hours=3)
+    generate_system_graph(image_path, hours=3)
 
 def send_telegram_photo(bot_token: str, chat_id: str, photo_path: str, caption: str = ""):
     import urllib.request
@@ -774,16 +876,21 @@ class MetricsCollector:
                             
                             if send_graph == 1:
                                 import tempfile
-                                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-                                    graph_path = tmp.name
+                                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_sys, \
+                                     tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_net:
+                                    sys_path = tmp_sys.name
+                                    net_path = tmp_net.name
                                 try:
-                                    generate_custom_graph(graph_path, hours=graph_hours)
-                                    send_telegram_photo(bot_token, chat_id, graph_path, msg)
+                                    generate_system_graph(sys_path, hours=graph_hours)
+                                    generate_network_graph(net_path, hours=graph_hours)
+                                    send_telegram_photo(bot_token, chat_id, sys_path, msg)
+                                    send_telegram_photo(bot_token, chat_id, net_path, f"📊 <b>[Network Traffic - Last {graph_hours}h]</b>")
                                 finally:
-                                    try:
-                                        os.unlink(graph_path)
-                                    except Exception:
-                                        pass
+                                    for p in [sys_path, net_path]:
+                                        try:
+                                            os.unlink(p)
+                                        except Exception:
+                                            pass
                             else:
                                 send_telegram_message(bot_token, chat_id, msg)
             except urllib.error.HTTPError as he:
@@ -961,16 +1068,21 @@ class MetricsCollector:
             try:
                 if alert_send_graph == 1:
                     import tempfile
-                    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-                        graph_path = tmp.name
+                    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_sys, \
+                         tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_net:
+                        sys_path = tmp_sys.name
+                        net_path = tmp_net.name
                     try:
-                        generate_custom_graph(graph_path, hours=graph_hours)
-                        send_telegram_photo(bot_token, chat_id, graph_path, alert_text)
+                        generate_system_graph(sys_path, hours=graph_hours)
+                        generate_network_graph(net_path, hours=graph_hours)
+                        send_telegram_photo(bot_token, chat_id, sys_path, alert_text)
+                        send_telegram_photo(bot_token, chat_id, net_path, f"📊 <b>[Network Traffic - Last {graph_hours}h]</b>")
                     finally:
-                        try:
-                            os.unlink(graph_path)
-                        except Exception:
-                            pass
+                        for p in [sys_path, net_path]:
+                            try:
+                                os.unlink(p)
+                            except Exception:
+                                pass
                 else:
                     send_telegram_message(bot_token, chat_id, alert_text)
             except Exception as e:
@@ -1052,16 +1164,21 @@ class MetricsCollector:
             try:
                 if send_graph == 1:
                     import tempfile
-                    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-                        graph_path = tmp.name
+                    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_sys, \
+                         tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_net:
+                        sys_path = tmp_sys.name
+                        net_path = tmp_net.name
                     try:
-                        generate_custom_graph(graph_path, hours=graph_hours)
-                        send_telegram_photo(bot_token, chat_id, graph_path, msg)
+                        generate_system_graph(sys_path, hours=graph_hours)
+                        generate_network_graph(net_path, hours=graph_hours)
+                        send_telegram_photo(bot_token, chat_id, sys_path, msg)
+                        send_telegram_photo(bot_token, chat_id, net_path, f"📊 <b>[Network Traffic - Last {graph_hours}h]</b>")
                     finally:
-                        try:
-                            os.unlink(graph_path)
-                        except Exception:
-                            pass
+                        for p in [sys_path, net_path]:
+                            try:
+                                os.unlink(p)
+                            except Exception:
+                                pass
                 else:
                     send_telegram_message(bot_token, chat_id, msg)
                     
@@ -1855,16 +1972,21 @@ async def test_telegram_config(payload: TelegramTestPayload, username: str = Dep
         
         if send_graph == 1:
             import tempfile
-            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-                graph_path = tmp.name
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_sys, \
+                 tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_net:
+                sys_path = tmp_sys.name
+                net_path = tmp_net.name
             try:
-                generate_custom_graph(graph_path, hours=graph_hours)
-                send_telegram_photo(bot_token, chat_id, graph_path, msg)
+                generate_system_graph(sys_path, hours=graph_hours)
+                generate_network_graph(net_path, hours=graph_hours)
+                send_telegram_photo(bot_token, chat_id, sys_path, msg)
+                send_telegram_photo(bot_token, chat_id, net_path, f"📊 <b>[Network Traffic - Last {graph_hours}h]</b>")
             finally:
-                try:
-                    os.unlink(graph_path)
-                except Exception:
-                    pass
+                for p in [sys_path, net_path]:
+                    try:
+                        os.unlink(p)
+                    except Exception:
+                        pass
         else:
             send_telegram_message(bot_token, chat_id, msg)
             
