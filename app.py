@@ -41,7 +41,7 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metrics.db")
 COLLECT_INTERVAL = 60  # seconds
 RETENTION_DAYS = 31
 PORT = 8080
-VERSION = "1.0.25"
+VERSION = "1.0.26"
 UI_REFRESH_INTERVAL = 3
 
 RANGE_MAP = {
@@ -256,12 +256,11 @@ def init_db():
                 load_threshold REAL DEFAULT 0.0,
                 disk_threshold REAL DEFAULT 0.0,
                 last_routine_sent REAL DEFAULT 0.0,
-                send_graph INTEGER DEFAULT 0,
-                enabled INTEGER DEFAULT 1,
-                graph_hours INTEGER DEFAULT 3,
-                custom_interval_minutes INTEGER DEFAULT 0,
-                load_avg_type INTEGER DEFAULT 1,
-                alert_send_graph INTEGER DEFAULT 0
+                send_sys_graph INTEGER DEFAULT 1,
+                send_net_graph INTEGER DEFAULT 1,
+                send_cpu_graph INTEGER DEFAULT 1,
+                send_ram_graph INTEGER DEFAULT 1,
+                send_load_graph INTEGER DEFAULT 1
             )
         """)
         # Migrations for missing columns
@@ -271,7 +270,12 @@ def init_db():
             ('graph_hours', 'INTEGER', 3),
             ('custom_interval_minutes', 'INTEGER', 0),
             ('load_avg_type', 'INTEGER', 1),
-            ('alert_send_graph', 'INTEGER', 0)
+            ('alert_send_graph', 'INTEGER', 0),
+            ('send_sys_graph', 'INTEGER', 1),
+            ('send_net_graph', 'INTEGER', 1),
+            ('send_cpu_graph', 'INTEGER', 1),
+            ('send_ram_graph', 'INTEGER', 1),
+            ('send_load_graph', 'INTEGER', 1)
         ]:
             column_exists = False
             if dsn:
@@ -302,8 +306,8 @@ def init_db():
         if cur.fetchone()[0] == 0:
             conn.execute("""
                 INSERT INTO telegram_config
-                (id, bot_token, chat_id, interval_hours, cpu_threshold, ram_threshold, load_threshold, disk_threshold, last_routine_sent, send_graph, enabled, graph_hours, custom_interval_minutes, load_avg_type, alert_send_graph)
-                VALUES (1, '', '', 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 1, 3, 0, 1, 0)
+                (id, bot_token, chat_id, interval_hours, cpu_threshold, ram_threshold, load_threshold, disk_threshold, last_routine_sent, send_graph, enabled, graph_hours, custom_interval_minutes, load_avg_type, alert_send_graph, send_sys_graph, send_net_graph, send_cpu_graph, send_ram_graph, send_load_graph)
+                VALUES (1, '', '', 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 1, 3, 0, 1, 0, 1, 1, 1, 1, 1)
             """)
 
 
@@ -615,6 +619,259 @@ def generate_network_graph(image_path: str, hours: int = 3):
         plt.savefig(image_path, dpi=100)
         plt.close()
 
+def generate_cpu_graph(image_path: str, hours: int = 3):
+    import sqlite3
+    import time
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    import matplotlib.dates as mdates
+    from datetime import datetime
+
+    now = time.time()
+    cutoff_time = now - hours * 3600
+
+    timestamps = []
+    cpu_vals = []
+
+    try:
+        with get_db() as conn:
+            cursor = conn.execute("""
+                SELECT timestamp, cpu_percent 
+                FROM metrics 
+                WHERE timestamp >= ? 
+                ORDER BY timestamp ASC
+            """, (cutoff_time,))
+            for row in cursor.fetchall():
+                ts = row["timestamp"]
+                timestamps.append(datetime.fromtimestamp(ts))
+                cpu_vals.append(row["cpu_percent"])
+    except Exception as dbe:
+        print(f"[CPU Graph DB Error] {dbe}")
+
+    if not timestamps:
+        plt.style.use('default')
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.text(0.5, 0.5, "No metrics collected yet", horizontalalignment='center', verticalalignment='center')
+        plt.savefig(image_path, dpi=100)
+        plt.close()
+        return
+
+    try:
+        plt.style.use('dark_background')
+        fig, ax = plt.subplots(figsize=(10, 5.2), dpi=200)
+        fig.patch.set_facecolor('#0f172a') # Slate 900
+        ax.set_facecolor('#1e293b') # Slate 800
+        
+        plt.title(f"CPU Usage - Last {hours} Hours", fontsize=12, fontweight='bold', pad=12, color='#f8fafc')
+        ax.grid(True, linestyle='--', color='#334155', alpha=0.5)
+        
+        ax.plot(timestamps, cpu_vals, label="CPU (%)", color="#3b82f6", linewidth=1.5)
+        ax.fill_between(timestamps, cpu_vals, color="#3b82f6", alpha=0.15)
+        
+        ax.set_ylabel("Usage (%)", color="#94a3b8", fontsize=9)
+        ax.set_ylim(-2, 102)
+        ax.tick_params(axis='y', labelcolor="#94a3b8", labelsize=8)
+        
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        if hours <= 3:
+            ax.xaxis.set_major_locator(mdates.MinuteLocator(interval=30))
+        elif hours <= 12:
+            ax.xaxis.set_major_locator(mdates.HourLocator(interval=2))
+        else:
+            ax.xaxis.set_major_locator(mdates.HourLocator(interval=4))
+            
+        ax.tick_params(axis='x', labelcolor="#94a3b8", labelsize=8)
+        fig.autofmt_xdate()
+        ax.legend(loc="upper left", fontsize=8, facecolor='#1e293b', edgecolor='#334155')
+        
+        plt.tight_layout()
+        plt.savefig(image_path, facecolor=fig.get_facecolor(), edgecolor='none')
+        plt.close()
+    except Exception as pe:
+        print(f"[CPU Graph Plotting Error] {pe}")
+        plt.style.use('default')
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.text(0.5, 0.5, f"Error rendering graph: {pe}", horizontalalignment='center', verticalalignment='center')
+        plt.savefig(image_path, dpi=100)
+        plt.close()
+
+def generate_ram_graph(image_path: str, hours: int = 3):
+    import sqlite3
+    import time
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    import matplotlib.dates as mdates
+    from datetime import datetime
+
+    now = time.time()
+    cutoff_time = now - hours * 3600
+
+    timestamps = []
+    ram_vals = []
+
+    try:
+        with get_db() as conn:
+            cursor = conn.execute("""
+                SELECT timestamp, ram_percent 
+                FROM metrics 
+                WHERE timestamp >= ? 
+                ORDER BY timestamp ASC
+            """, (cutoff_time,))
+            for row in cursor.fetchall():
+                ts = row["timestamp"]
+                timestamps.append(datetime.fromtimestamp(ts))
+                ram_vals.append(row["ram_percent"])
+    except Exception as dbe:
+        print(f"[RAM Graph DB Error] {dbe}")
+
+    if not timestamps:
+        plt.style.use('default')
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.text(0.5, 0.5, "No metrics collected yet", horizontalalignment='center', verticalalignment='center')
+        plt.savefig(image_path, dpi=100)
+        plt.close()
+        return
+
+    try:
+        plt.style.use('dark_background')
+        fig, ax = plt.subplots(figsize=(10, 5.2), dpi=200)
+        fig.patch.set_facecolor('#0f172a') # Slate 900
+        ax.set_facecolor('#1e293b') # Slate 800
+        
+        plt.title(f"Memory Usage - Last {hours} Hours", fontsize=12, fontweight='bold', pad=12, color='#f8fafc')
+        ax.grid(True, linestyle='--', color='#334155', alpha=0.5)
+        
+        ax.plot(timestamps, ram_vals, label="RAM (%)", color="#10b981", linewidth=1.5)
+        ax.fill_between(timestamps, ram_vals, color="#10b981", alpha=0.15)
+        
+        ax.set_ylabel("Usage (%)", color="#94a3b8", fontsize=9)
+        ax.set_ylim(-2, 102)
+        ax.tick_params(axis='y', labelcolor="#94a3b8", labelsize=8)
+        
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        if hours <= 3:
+            ax.xaxis.set_major_locator(mdates.MinuteLocator(interval=30))
+        elif hours <= 12:
+            ax.xaxis.set_major_locator(mdates.HourLocator(interval=2))
+        else:
+            ax.xaxis.set_major_locator(mdates.HourLocator(interval=4))
+            
+        ax.tick_params(axis='x', labelcolor="#94a3b8", labelsize=8)
+        fig.autofmt_xdate()
+        ax.legend(loc="upper left", fontsize=8, facecolor='#1e293b', edgecolor='#334155')
+        
+        plt.tight_layout()
+        plt.savefig(image_path, facecolor=fig.get_facecolor(), edgecolor='none')
+        plt.close()
+    except Exception as pe:
+        print(f"[RAM Graph Plotting Error] {pe}")
+        plt.style.use('default')
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.text(0.5, 0.5, f"Error rendering graph: {pe}", horizontalalignment='center', verticalalignment='center')
+        plt.savefig(image_path, dpi=100)
+        plt.close()
+
+def generate_load_graph(image_path: str, hours: int = 3):
+    import sqlite3
+    import time
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    import matplotlib.dates as mdates
+    from datetime import datetime
+    import json
+
+    now = time.time()
+    cutoff_time = now - hours * 3600
+
+    timestamps = []
+    load_1m_vals = []
+    load_5m_vals = []
+    load_15m_vals = []
+
+    try:
+        with get_db() as conn:
+            cursor = conn.execute("""
+                SELECT timestamp, extra_json 
+                FROM metrics 
+                WHERE timestamp >= ? 
+                ORDER BY timestamp ASC
+            """, (cutoff_time,))
+            for row in cursor.fetchall():
+                ts = row["timestamp"]
+                timestamps.append(datetime.fromtimestamp(ts))
+                
+                load_1m, load_5m, load_15m = 0.0, 0.0, 0.0
+                try:
+                    extra = json.loads(row["extra_json"])
+                    if "load_avg" in extra and isinstance(extra["load_avg"], list):
+                        l_avg = extra["load_avg"]
+                        if len(l_avg) > 0: load_1m = l_avg[0]
+                        if len(l_avg) > 1: load_5m = l_avg[1]
+                        if len(l_avg) > 2: load_15m = l_avg[2]
+                except Exception:
+                    pass
+                load_1m_vals.append(load_1m)
+                load_5m_vals.append(load_5m)
+                load_15m_vals.append(load_15m)
+    except Exception as dbe:
+        print(f"[Load Graph DB Error] {dbe}")
+
+    if not timestamps:
+        plt.style.use('default')
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.text(0.5, 0.5, "No metrics collected yet", horizontalalignment='center', verticalalignment='center')
+        plt.savefig(image_path, dpi=100)
+        plt.close()
+        return
+
+    try:
+        plt.style.use('dark_background')
+        fig, ax = plt.subplots(figsize=(10, 5.2), dpi=200)
+        fig.patch.set_facecolor('#0f172a') # Slate 900
+        ax.set_facecolor('#1e293b') # Slate 800
+        
+        plt.title(f"Load Average - Last {hours} Hours", fontsize=12, fontweight='bold', pad=12, color='#f8fafc')
+        ax.grid(True, linestyle='--', color='#334155', alpha=0.5)
+        
+        ax.plot(timestamps, load_1m_vals, label="1m", color="#f43f5e", linewidth=1.5)
+        ax.plot(timestamps, load_5m_vals, label="5m", color="#ec4899", linewidth=1.5, linestyle='--')
+        ax.plot(timestamps, load_15m_vals, label="15m", color="#a855f7", linewidth=1.5, linestyle='-.')
+        
+        ax.set_ylabel("Load Average", color="#94a3b8", fontsize=9)
+        max_load = max(
+            max(load_1m_vals) if load_1m_vals else 1.0,
+            max(load_5m_vals) if load_5m_vals else 1.0,
+            max(load_15m_vals) if load_15m_vals else 1.0
+        )
+        ax.set_ylim(-0.1, max(max_load * 1.2, 1.0))
+        ax.tick_params(axis='y', labelcolor="#94a3b8", labelsize=8)
+        
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        if hours <= 3:
+            ax.xaxis.set_major_locator(mdates.MinuteLocator(interval=30))
+        elif hours <= 12:
+            ax.xaxis.set_major_locator(mdates.HourLocator(interval=2))
+        else:
+            ax.xaxis.set_major_locator(mdates.HourLocator(interval=4))
+            
+        ax.tick_params(axis='x', labelcolor="#94a3b8", labelsize=8)
+        fig.autofmt_xdate()
+        ax.legend(loc="upper left", fontsize=8, facecolor='#1e293b', edgecolor='#334155')
+        
+        plt.tight_layout()
+        plt.savefig(image_path, facecolor=fig.get_facecolor(), edgecolor='none')
+        plt.close()
+    except Exception as pe:
+        print(f"[Load Graph Plotting Error] {pe}")
+        plt.style.use('default')
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.text(0.5, 0.5, f"Error rendering graph: {pe}", horizontalalignment='center', verticalalignment='center')
+        plt.savefig(image_path, dpi=100)
+        plt.close()
+
 def generate_custom_graph(image_path: str, hours: int = 3):
     generate_system_graph(image_path, hours)
 
@@ -787,6 +1044,11 @@ class MetricsCollector:
         self._tg_custom_interval_minutes = 0
         self._tg_load_avg_type = 1
         self._tg_alert_send_graph = 0
+        self._tg_send_sys_graph = 1
+        self._tg_send_net_graph = 1
+        self._tg_send_cpu_graph = 1
+        self._tg_send_ram_graph = 1
+        self._tg_send_load_graph = 1
 
     def start(self):
         self._prev_net = _get_default_nic_counters()
@@ -827,7 +1089,7 @@ class MetricsCollector:
             try:
                 with get_db() as conn:
                     row = conn.execute("""
-                        SELECT bot_token, chat_id, send_graph, enabled, graph_hours 
+                        SELECT bot_token, chat_id, send_graph, enabled, graph_hours, send_sys_graph, send_net_graph, send_cpu_graph, send_ram_graph, send_load_graph 
                         FROM telegram_config 
                         WHERE id = 1
                     """).fetchone()
@@ -840,6 +1102,11 @@ class MetricsCollector:
                 chat_id = row["chat_id"]
                 send_graph = row["send_graph"]
                 graph_hours = row["graph_hours"] if row["graph_hours"] is not None else 3
+                send_sys_graph = row["send_sys_graph"] if row["send_sys_graph"] is not None else 1
+                send_net_graph = row["send_net_graph"] if row["send_net_graph"] is not None else 1
+                send_cpu_graph = row["send_cpu_graph"] if row["send_cpu_graph"] is not None else 1
+                send_ram_graph = row["send_ram_graph"] if row["send_ram_graph"] is not None else 1
+                send_load_graph = row["send_load_graph"] if row["send_load_graph"] is not None else 1
                 
                 url = f"https://api.telegram.org/bot{bot_token}/getUpdates?offset={offset}&timeout=10"
                 req = urllib.request.Request(url, method="GET")
@@ -874,23 +1141,34 @@ class MetricsCollector:
                                 
                             msg = build_telegram_stats_message(now, cpu, ram_percent, disk_percent, load_avg)
                             
-                            if send_graph == 1:
+                            graphs_to_send = []
+                            if send_cpu_graph == 1:
+                                graphs_to_send.append(("cpu", generate_cpu_graph, f"📊 <b>[CPU Usage - Last {graph_hours}h]</b>"))
+                            if send_ram_graph == 1:
+                                graphs_to_send.append(("ram", generate_ram_graph, f"📊 <b>[Memory Usage - Last {graph_hours}h]</b>"))
+                            if send_load_graph == 1:
+                                graphs_to_send.append(("load", generate_load_graph, f"📊 <b>[Load Average - Last {graph_hours}h]</b>"))
+                            if send_net_graph == 1:
+                                graphs_to_send.append(("net", generate_network_graph, f"📊 <b>[Network Traffic - Last {graph_hours}h]</b>"))
+
+                            if send_graph == 1 and graphs_to_send:
                                 import tempfile
-                                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_sys, \
-                                     tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_net:
-                                    sys_path = tmp_sys.name
-                                    net_path = tmp_net.name
-                                try:
-                                    generate_system_graph(sys_path, hours=graph_hours)
-                                    generate_network_graph(net_path, hours=graph_hours)
-                                    send_telegram_photo(bot_token, chat_id, sys_path, msg)
-                                    send_telegram_photo(bot_token, chat_id, net_path, f"📊 <b>[Network Traffic - Last {graph_hours}h]</b>")
-                                finally:
-                                    for p in [sys_path, net_path]:
-                                        try:
-                                            os.unlink(p)
-                                        except Exception:
-                                            pass
+                                for i, (g_type, gen_fn, default_cap) in enumerate(graphs_to_send):
+                                    caption = msg if i == 0 else default_cap
+                                    tmp_path = None
+                                    try:
+                                        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_file:
+                                            tmp_path = tmp_file.name
+                                        gen_fn(tmp_path, hours=graph_hours)
+                                        send_telegram_photo(bot_token, chat_id, tmp_path, caption)
+                                    except Exception as ge:
+                                        print(f"[Telegram Graph Send Error] {g_type}: {ge}")
+                                    finally:
+                                        if tmp_path:
+                                            try:
+                                                os.unlink(tmp_path)
+                                            except Exception:
+                                                pass
                             else:
                                 send_telegram_message(bot_token, chat_id, msg)
             except urllib.error.HTTPError as he:
@@ -1006,7 +1284,7 @@ class MetricsCollector:
 
         with get_db() as conn:
             row = conn.execute("""
-                SELECT bot_token, chat_id, cpu_threshold, ram_threshold, load_threshold, disk_threshold, enabled, load_avg_type, alert_send_graph, graph_hours
+                SELECT bot_token, chat_id, cpu_threshold, ram_threshold, load_threshold, disk_threshold, enabled, load_avg_type, alert_send_graph, graph_hours, send_sys_graph, send_net_graph, send_cpu_graph, send_ram_graph, send_load_graph
                 FROM telegram_config
                 WHERE id = 1
             """).fetchone()
@@ -1023,6 +1301,11 @@ class MetricsCollector:
             load_avg_type = row["load_avg_type"] if row["load_avg_type"] is not None else 1
             alert_send_graph = row["alert_send_graph"] if row["alert_send_graph"] is not None else 0
             graph_hours = row["graph_hours"] if row["graph_hours"] is not None else 3
+            send_sys_graph = row["send_sys_graph"] if row["send_sys_graph"] is not None else 1
+            send_net_graph = row["send_net_graph"] if row["send_net_graph"] is not None else 1
+            send_cpu_graph = row["send_cpu_graph"] if row["send_cpu_graph"] is not None else 1
+            send_ram_graph = row["send_ram_graph"] if row["send_ram_graph"] is not None else 1
+            send_load_graph = row["send_load_graph"] if row["send_load_graph"] is not None else 1
 
         # 1. Check Alert Thresholds
         alerts_triggered = []
@@ -1066,23 +1349,34 @@ class MetricsCollector:
             alert_text = f"🚨 <b>[Alert - {hostname}]</b>\n\n" + "\n".join(alerts_triggered)
             alert_text += f"\n\n🕒 Time: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(now))}"
             try:
-                if alert_send_graph == 1:
+                graphs_to_send = []
+                if send_cpu_graph == 1:
+                    graphs_to_send.append(("cpu", generate_cpu_graph, f"📊 <b>[CPU Usage - Last {graph_hours}h]</b>"))
+                if send_ram_graph == 1:
+                    graphs_to_send.append(("ram", generate_ram_graph, f"📊 <b>[Memory Usage - Last {graph_hours}h]</b>"))
+                if send_load_graph == 1:
+                    graphs_to_send.append(("load", generate_load_graph, f"📊 <b>[Load Average - Last {graph_hours}h]</b>"))
+                if send_net_graph == 1:
+                    graphs_to_send.append(("net", generate_network_graph, f"📊 <b>[Network Traffic - Last {graph_hours}h]</b>"))
+
+                if alert_send_graph == 1 and graphs_to_send:
                     import tempfile
-                    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_sys, \
-                         tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_net:
-                        sys_path = tmp_sys.name
-                        net_path = tmp_net.name
-                    try:
-                        generate_system_graph(sys_path, hours=graph_hours)
-                        generate_network_graph(net_path, hours=graph_hours)
-                        send_telegram_photo(bot_token, chat_id, sys_path, alert_text)
-                        send_telegram_photo(bot_token, chat_id, net_path, f"📊 <b>[Network Traffic - Last {graph_hours}h]</b>")
-                    finally:
-                        for p in [sys_path, net_path]:
-                            try:
-                                os.unlink(p)
-                            except Exception:
-                                pass
+                    for i, (g_type, gen_fn, default_cap) in enumerate(graphs_to_send):
+                        caption = alert_text if i == 0 else default_cap
+                        tmp_path = None
+                        try:
+                            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_file:
+                                tmp_path = tmp_file.name
+                            gen_fn(tmp_path, hours=graph_hours)
+                            send_telegram_photo(bot_token, chat_id, tmp_path, caption)
+                        except Exception as ge:
+                            print(f"[Telegram Alert Graph Send Error] {g_type}: {ge}")
+                        finally:
+                            if tmp_path:
+                                try:
+                                    os.unlink(tmp_path)
+                                except Exception:
+                                    pass
                 else:
                     send_telegram_message(bot_token, chat_id, alert_text)
             except Exception as e:
@@ -1094,7 +1388,7 @@ class MetricsCollector:
             try:
                 with get_db() as conn:
                     row = conn.execute("""
-                        SELECT bot_token, chat_id, interval_hours, last_routine_sent, send_graph, enabled, graph_hours, custom_interval_minutes
+                        SELECT bot_token, chat_id, interval_hours, last_routine_sent, send_graph, enabled, graph_hours, custom_interval_minutes, send_sys_graph, send_net_graph, send_cpu_graph, send_ram_graph, send_load_graph
                         FROM telegram_config
                         WHERE id = 1
                     """).fetchone()
@@ -1110,6 +1404,11 @@ class MetricsCollector:
                         self._tg_enabled = row["enabled"]
                         self._tg_graph_hours = row["graph_hours"] if row["graph_hours"] is not None else 3
                         self._tg_custom_interval_minutes = row["custom_interval_minutes"] if row["custom_interval_minutes"] is not None else 0
+                        self._tg_send_sys_graph = row["send_sys_graph"] if row["send_sys_graph"] is not None else 1
+                        self._tg_send_net_graph = row["send_net_graph"] if row["send_net_graph"] is not None else 1
+                        self._tg_send_cpu_graph = row["send_cpu_graph"] if row["send_cpu_graph"] is not None else 1
+                        self._tg_send_ram_graph = row["send_ram_graph"] if row["send_ram_graph"] is not None else 1
+                        self._tg_send_load_graph = row["send_load_graph"] if row["send_load_graph"] is not None else 1
                 self._tg_last_config_query_time = now
             except Exception as dbe:
                 print(f"[Telegram Cache Query Error] {dbe}")
@@ -1122,6 +1421,11 @@ class MetricsCollector:
         enabled = self._tg_enabled
         graph_hours = self._tg_graph_hours
         custom_interval_minutes = self._tg_custom_interval_minutes
+        send_sys_graph = self._tg_send_sys_graph
+        send_net_graph = self._tg_send_net_graph
+        send_cpu_graph = self._tg_send_cpu_graph
+        send_ram_graph = self._tg_send_ram_graph
+        send_load_graph = self._tg_send_load_graph
 
         if not bot_token or not chat_id or interval_hours == 0 or enabled == 0:
             return
@@ -1162,23 +1466,34 @@ class MetricsCollector:
                 
             msg = build_telegram_stats_message(now, cpu, ram_percent, disk_percent, load_avg)
             try:
-                if send_graph == 1:
+                graphs_to_send = []
+                if send_cpu_graph == 1:
+                    graphs_to_send.append(("cpu", generate_cpu_graph, f"📊 <b>[CPU Usage - Last {graph_hours}h]</b>"))
+                if send_ram_graph == 1:
+                    graphs_to_send.append(("ram", generate_ram_graph, f"📊 <b>[Memory Usage - Last {graph_hours}h]</b>"))
+                if send_load_graph == 1:
+                    graphs_to_send.append(("load", generate_load_graph, f"📊 <b>[Load Average - Last {graph_hours}h]</b>"))
+                if send_net_graph == 1:
+                    graphs_to_send.append(("net", generate_network_graph, f"📊 <b>[Network Traffic - Last {graph_hours}h]</b>"))
+
+                if send_graph == 1 and graphs_to_send:
                     import tempfile
-                    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_sys, \
-                         tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_net:
-                        sys_path = tmp_sys.name
-                        net_path = tmp_net.name
-                    try:
-                        generate_system_graph(sys_path, hours=graph_hours)
-                        generate_network_graph(net_path, hours=graph_hours)
-                        send_telegram_photo(bot_token, chat_id, sys_path, msg)
-                        send_telegram_photo(bot_token, chat_id, net_path, f"📊 <b>[Network Traffic - Last {graph_hours}h]</b>")
-                    finally:
-                        for p in [sys_path, net_path]:
-                            try:
-                                os.unlink(p)
-                            except Exception:
-                                pass
+                    for i, (g_type, gen_fn, default_cap) in enumerate(graphs_to_send):
+                        caption = msg if i == 0 else default_cap
+                        tmp_path = None
+                        try:
+                            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_file:
+                                tmp_path = tmp_file.name
+                            gen_fn(tmp_path, hours=graph_hours)
+                            send_telegram_photo(bot_token, chat_id, tmp_path, caption)
+                        except Exception as ge:
+                            print(f"[Telegram Routine Graph Send Error] {g_type}: {ge}")
+                        finally:
+                            if tmp_path:
+                                try:
+                                    os.unlink(tmp_path)
+                                except Exception:
+                                    pass
                 else:
                     send_telegram_message(bot_token, chat_id, msg)
                     
@@ -1856,18 +2171,28 @@ class TelegramConfigPayload(BaseModel):
     custom_interval_minutes: int = 0
     load_avg_type: int = 1
     alert_send_graph: int = 0
+    send_sys_graph: int = 1
+    send_net_graph: int = 1
+    send_cpu_graph: int = 1
+    send_ram_graph: int = 1
+    send_load_graph: int = 1
 
 class TelegramTestPayload(BaseModel):
     bot_token: str = None
     chat_id: str = None
     send_graph: int = None
     graph_hours: int = None
+    send_sys_graph: int = None
+    send_net_graph: int = None
+    send_cpu_graph: int = None
+    send_ram_graph: int = None
+    send_load_graph: int = None
 
 @app.get("/api/telegram/config")
 async def get_telegram_config(username: str = Depends(get_current_username)):
     with get_db() as conn:
         row = conn.execute("""
-            SELECT bot_token, chat_id, interval_hours, cpu_threshold, ram_threshold, load_threshold, disk_threshold, send_graph, enabled, graph_hours, custom_interval_minutes, load_avg_type, alert_send_graph
+            SELECT bot_token, chat_id, interval_hours, cpu_threshold, ram_threshold, load_threshold, disk_threshold, send_graph, enabled, graph_hours, custom_interval_minutes, load_avg_type, alert_send_graph, send_sys_graph, send_net_graph, send_cpu_graph, send_ram_graph, send_load_graph
             FROM telegram_config
             WHERE id = 1
         """).fetchone()
@@ -1885,7 +2210,12 @@ async def get_telegram_config(username: str = Depends(get_current_username)):
                 "graph_hours": 3,
                 "custom_interval_minutes": 0,
                 "load_avg_type": 1,
-                "alert_send_graph": 0
+                "alert_send_graph": 0,
+                "send_sys_graph": 1,
+                "send_net_graph": 1,
+                "send_cpu_graph": 1,
+                "send_ram_graph": 1,
+                "send_load_graph": 1
             })
         return JSONResponse(content={
             "bot_token": row["bot_token"],
@@ -1900,7 +2230,12 @@ async def get_telegram_config(username: str = Depends(get_current_username)):
             "graph_hours": row["graph_hours"] if row["graph_hours"] is not None else 3,
             "custom_interval_minutes": row["custom_interval_minutes"] if row["custom_interval_minutes"] is not None else 0,
             "load_avg_type": row["load_avg_type"] if row["load_avg_type"] is not None else 1,
-            "alert_send_graph": row["alert_send_graph"] if row["alert_send_graph"] is not None else 0
+            "alert_send_graph": row["alert_send_graph"] if row["alert_send_graph"] is not None else 0,
+            "send_sys_graph": row["send_sys_graph"] if row["send_sys_graph"] is not None else 1,
+            "send_net_graph": row["send_net_graph"] if row["send_net_graph"] is not None else 1,
+            "send_cpu_graph": row["send_cpu_graph"] if row["send_cpu_graph"] is not None else 1,
+            "send_ram_graph": row["send_ram_graph"] if row["send_ram_graph"] is not None else 1,
+            "send_load_graph": row["send_load_graph"] if row["send_load_graph"] is not None else 1
         })
 
 @app.post("/api/telegram/config")
@@ -1921,6 +2256,11 @@ async def save_telegram_config(payload: TelegramConfigPayload, username: str = D
                 custom_interval_minutes = ?,
                 load_avg_type = ?,
                 alert_send_graph = ?,
+                send_sys_graph = ?,
+                send_net_graph = ?,
+                send_cpu_graph = ?,
+                send_ram_graph = ?,
+                send_load_graph = ?,
                 last_routine_sent = 0.0
             WHERE id = 1
         """, (
@@ -1936,7 +2276,12 @@ async def save_telegram_config(payload: TelegramConfigPayload, username: str = D
             payload.graph_hours,
             payload.custom_interval_minutes,
             payload.load_avg_type,
-            payload.alert_send_graph
+            payload.alert_send_graph,
+            payload.send_sys_graph,
+            payload.send_net_graph,
+            payload.send_cpu_graph,
+            payload.send_ram_graph,
+            payload.send_load_graph
         ))
     return JSONResponse(content={"status": "success", "message": "Configuration saved"})
 
@@ -1948,14 +2293,22 @@ async def test_telegram_config(payload: TelegramTestPayload, username: str = Dep
     
     # Fallback to saved if not provided in payload
     with get_db() as conn:
-        row = conn.execute("SELECT bot_token, chat_id, send_graph, graph_hours FROM telegram_config WHERE id = 1").fetchone()
+        row = conn.execute("SELECT bot_token, chat_id, send_graph, graph_hours, send_sys_graph, send_net_graph, send_cpu_graph, send_ram_graph, send_load_graph FROM telegram_config WHERE id = 1").fetchone()
         if row:
             if not bot_token: bot_token = row["bot_token"]
             if not chat_id: chat_id = row["chat_id"]
             if send_graph is None: send_graph = row["send_graph"]
             graph_hours = payload.graph_hours if payload.graph_hours is not None else (row["graph_hours"] if row["graph_hours"] is not None else 3)
+            send_cpu_graph = payload.send_cpu_graph if payload.send_cpu_graph is not None else (row["send_cpu_graph"] if row["send_cpu_graph"] is not None else 1)
+            send_ram_graph = payload.send_ram_graph if payload.send_ram_graph is not None else (row["send_ram_graph"] if row["send_ram_graph"] is not None else 1)
+            send_load_graph = payload.send_load_graph if payload.send_load_graph is not None else (row["send_load_graph"] if row["send_load_graph"] is not None else 1)
+            send_net_graph = payload.send_net_graph if payload.send_net_graph is not None else (row["send_net_graph"] if row["send_net_graph"] is not None else 1)
         else:
             graph_hours = payload.graph_hours if payload.graph_hours is not None else 3
+            send_cpu_graph = payload.send_cpu_graph if payload.send_cpu_graph is not None else 1
+            send_ram_graph = payload.send_ram_graph if payload.send_ram_graph is not None else 1
+            send_load_graph = payload.send_load_graph if payload.send_load_graph is not None else 1
+            send_net_graph = payload.send_net_graph if payload.send_net_graph is not None else 1
                 
     if not bot_token or not chat_id:
         raise HTTPException(status_code=400, detail="Bot Token and Chat ID are required")
@@ -1970,23 +2323,34 @@ async def test_telegram_config(payload: TelegramTestPayload, username: str = Dep
         msg += "This is a test notification from your server.\n\n"
         msg += build_telegram_stats_message(now, cpu, ram.percent, disk.percent)
         
-        if send_graph == 1:
+        graphs_to_send = []
+        if send_cpu_graph == 1:
+            graphs_to_send.append(("cpu", generate_cpu_graph, f"📊 <b>[CPU Usage - Last {graph_hours}h]</b>"))
+        if send_ram_graph == 1:
+            graphs_to_send.append(("ram", generate_ram_graph, f"📊 <b>[Memory Usage - Last {graph_hours}h]</b>"))
+        if send_load_graph == 1:
+            graphs_to_send.append(("load", generate_load_graph, f"📊 <b>[Load Average - Last {graph_hours}h]</b>"))
+        if send_net_graph == 1:
+            graphs_to_send.append(("net", generate_network_graph, f"📊 <b>[Network Traffic - Last {graph_hours}h]</b>"))
+
+        if send_graph == 1 and graphs_to_send:
             import tempfile
-            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_sys, \
-                 tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_net:
-                sys_path = tmp_sys.name
-                net_path = tmp_net.name
-            try:
-                generate_system_graph(sys_path, hours=graph_hours)
-                generate_network_graph(net_path, hours=graph_hours)
-                send_telegram_photo(bot_token, chat_id, sys_path, msg)
-                send_telegram_photo(bot_token, chat_id, net_path, f"📊 <b>[Network Traffic - Last {graph_hours}h]</b>")
-            finally:
-                for p in [sys_path, net_path]:
-                    try:
-                        os.unlink(p)
-                    except Exception:
-                        pass
+            for i, (g_type, gen_fn, default_cap) in enumerate(graphs_to_send):
+                caption = msg if i == 0 else default_cap
+                tmp_path = None
+                try:
+                    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_file:
+                        tmp_path = tmp_file.name
+                    gen_fn(tmp_path, hours=graph_hours)
+                    send_telegram_photo(bot_token, chat_id, tmp_path, caption)
+                except Exception as ge:
+                    print(f"[Telegram Test Graph Send Error] {g_type}: {ge}")
+                finally:
+                    if tmp_path:
+                        try:
+                            os.unlink(tmp_path)
+                        except Exception:
+                            pass
         else:
             send_telegram_message(bot_token, chat_id, msg)
             
@@ -2125,7 +2489,10 @@ async def update_panel(skip_git: bool = Query(False), username: str = Depends(ge
 
 @app.get("/")
 async def index(username: str = Depends(get_current_username)):
-    return FileResponse(os.path.join(STATIC_DIR, "index.html"))
+    return FileResponse(
+        os.path.join(STATIC_DIR, "index.html"),
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+    )
 
 
 @app.get("/api/interfaces")

@@ -2380,7 +2380,10 @@
         const tgLoadTh = document.getElementById('tgLoadTh');
         const tgLoadAvgType = document.getElementById('tgLoadAvgType');
         const tgDiskTh = document.getElementById('tgDiskTh');
-        const tgSendGraph = document.getElementById('tgSendGraph');
+        const tgSendCpuGraph = document.getElementById('tgSendCpuGraph');
+        const tgSendRamGraph = document.getElementById('tgSendRamGraph');
+        const tgSendLoadGraph = document.getElementById('tgSendLoadGraph');
+        const tgSendNetGraph = document.getElementById('tgSendNetGraph');
         const tgAlertSendGraph = document.getElementById('tgAlertSendGraph');
         const tgEnabled = document.getElementById('tgEnabled');
         
@@ -2390,10 +2393,10 @@
         if (!btnOpen || !overlay) return;
 
         function toggleCustomInterval() {
-            if (tgInterval.value === "-1") {
-                tgCustomIntervalContainer.classList.remove('hidden');
+            if (tgInterval.value.toString() === "-1") {
+                tgCustomIntervalContainer.style.setProperty('display', 'flex', 'important');
             } else {
-                tgCustomIntervalContainer.classList.add('hidden');
+                tgCustomIntervalContainer.style.setProperty('display', 'none', 'important');
             }
         }
         tgInterval.addEventListener('change', toggleCustomInterval);
@@ -2427,7 +2430,10 @@
                 tgLoadTh.value = data.load_threshold !== undefined ? data.load_threshold : 0.0;
                 tgLoadAvgType.value = data.load_avg_type !== undefined ? data.load_avg_type : 1;
                 tgDiskTh.value = data.disk_threshold !== undefined ? data.disk_threshold : 0.0;
-                tgSendGraph.checked = data.send_graph === 1;
+                tgSendCpuGraph.checked = data.send_cpu_graph !== 0;
+                tgSendRamGraph.checked = data.send_ram_graph !== 0;
+                tgSendLoadGraph.checked = data.send_load_graph !== 0;
+                tgSendNetGraph.checked = data.send_net_graph !== 0;
                 tgAlertSendGraph.checked = data.alert_send_graph === 1;
                 if (tgEnabled) {
                     tgEnabled.checked = data.enabled !== 0;
@@ -2450,7 +2456,12 @@
                 load_threshold: parseFloat(tgLoadTh.value) || 0.0,
                 load_avg_type: parseInt(tgLoadAvgType.value, 10) || 1,
                 disk_threshold: parseFloat(tgDiskTh.value) || 0.0,
-                send_graph: tgSendGraph.checked ? 1 : 0,
+                send_graph: (tgSendCpuGraph.checked || tgSendRamGraph.checked || tgSendLoadGraph.checked || tgSendNetGraph.checked) ? 1 : 0,
+                send_sys_graph: (tgSendCpuGraph.checked || tgSendRamGraph.checked || tgSendLoadGraph.checked) ? 1 : 0,
+                send_net_graph: tgSendNetGraph.checked ? 1 : 0,
+                send_cpu_graph: tgSendCpuGraph.checked ? 1 : 0,
+                send_ram_graph: tgSendRamGraph.checked ? 1 : 0,
+                send_load_graph: tgSendLoadGraph.checked ? 1 : 0,
                 alert_send_graph: tgAlertSendGraph.checked ? 1 : 0,
                 enabled: tgEnabled ? (tgEnabled.checked ? 1 : 0) : 1
             };
@@ -2489,7 +2500,12 @@
             const testPayload = {
                 bot_token: tgBotToken.value.trim(),
                 chat_id: tgChatId.value.trim(),
-                send_graph: tgSendGraph.checked ? 1 : 0,
+                send_graph: (tgSendCpuGraph.checked || tgSendRamGraph.checked || tgSendLoadGraph.checked || tgSendNetGraph.checked) ? 1 : 0,
+                send_sys_graph: (tgSendCpuGraph.checked || tgSendRamGraph.checked || tgSendLoadGraph.checked) ? 1 : 0,
+                send_net_graph: tgSendNetGraph.checked ? 1 : 0,
+                send_cpu_graph: tgSendCpuGraph.checked ? 1 : 0,
+                send_ram_graph: tgSendRamGraph.checked ? 1 : 0,
+                send_load_graph: tgSendLoadGraph.checked ? 1 : 0,
                 graph_hours: parseInt(tgGraphHours.value, 10) || 3
             };
 
