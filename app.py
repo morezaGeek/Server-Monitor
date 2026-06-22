@@ -260,7 +260,10 @@ def init_db():
                 send_net_graph INTEGER DEFAULT 1,
                 send_cpu_graph INTEGER DEFAULT 1,
                 send_ram_graph INTEGER DEFAULT 1,
-                send_load_graph INTEGER DEFAULT 1
+                send_load_graph INTEGER DEFAULT 1,
+                send_load_1m_graph INTEGER DEFAULT 1,
+                send_load_5m_graph INTEGER DEFAULT 1,
+                send_load_15m_graph INTEGER DEFAULT 1
             )
         """)
         # Migrations for missing columns
@@ -275,7 +278,10 @@ def init_db():
             ('send_net_graph', 'INTEGER', 1),
             ('send_cpu_graph', 'INTEGER', 1),
             ('send_ram_graph', 'INTEGER', 1),
-            ('send_load_graph', 'INTEGER', 1)
+            ('send_load_graph', 'INTEGER', 1),
+            ('send_load_1m_graph', 'INTEGER', 1),
+            ('send_load_5m_graph', 'INTEGER', 1),
+            ('send_load_15m_graph', 'INTEGER', 1)
         ]:
             column_exists = False
             if dsn:
@@ -306,8 +312,8 @@ def init_db():
         if cur.fetchone()[0] == 0:
             conn.execute("""
                 INSERT INTO telegram_config
-                (id, bot_token, chat_id, interval_hours, cpu_threshold, ram_threshold, load_threshold, disk_threshold, last_routine_sent, send_graph, enabled, graph_hours, custom_interval_minutes, load_avg_type, alert_send_graph, send_sys_graph, send_net_graph, send_cpu_graph, send_ram_graph, send_load_graph)
-                VALUES (1, '', '', 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 1, 3, 0, 1, 0, 1, 1, 1, 1, 1)
+                (id, bot_token, chat_id, interval_hours, cpu_threshold, ram_threshold, load_threshold, disk_threshold, last_routine_sent, send_graph, enabled, graph_hours, custom_interval_minutes, load_avg_type, alert_send_graph, send_sys_graph, send_net_graph, send_cpu_graph, send_ram_graph, send_load_graph, send_load_1m_graph, send_load_5m_graph, send_load_15m_graph)
+                VALUES (1, '', '', 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 1, 3, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1)
             """)
 
 
@@ -773,7 +779,7 @@ def generate_ram_graph(image_path: str, hours: int = 3):
         plt.savefig(image_path, dpi=100)
         plt.close()
 
-def generate_load_graph(image_path: str, hours: int = 3):
+def generate_load_graph(image_path: str, hours: int = 3, plot_1m: bool = True, plot_5m: bool = True, plot_15m: bool = True):
     import sqlite3
     import time
     import matplotlib
@@ -836,9 +842,16 @@ def generate_load_graph(image_path: str, hours: int = 3):
         plt.title(f"Load Average - Last {hours} Hours", fontsize=12, fontweight='bold', pad=12, color='#f8fafc')
         ax.grid(True, linestyle='--', color='#334155', alpha=0.5)
         
-        ax.plot(timestamps, load_1m_vals, label="1m", color="#f43f5e", linewidth=1.5)
-        ax.plot(timestamps, load_5m_vals, label="5m", color="#ec4899", linewidth=1.5, linestyle='--')
-        ax.plot(timestamps, load_15m_vals, label="15m", color="#a855f7", linewidth=1.5, linestyle='-.')
+        lines = []
+        if plot_1m:
+            l1, = ax.plot(timestamps, load_1m_vals, label="1m", color="#ef4444", linewidth=1.5)
+            lines.append(l1)
+        if plot_5m:
+            l5, = ax.plot(timestamps, load_5m_vals, label="5m", color="#f59e0b", linewidth=1.5, linestyle='--')
+            lines.append(l5)
+        if plot_15m:
+            l15, = ax.plot(timestamps, load_15m_vals, label="15m", color="#8b5cf6", linewidth=1.5, linestyle='-.')
+            lines.append(l15)
         
         ax.set_ylabel("Load Average", color="#94a3b8", fontsize=9)
         max_load = max(
@@ -859,7 +872,8 @@ def generate_load_graph(image_path: str, hours: int = 3):
             
         ax.tick_params(axis='x', labelcolor="#94a3b8", labelsize=8)
         fig.autofmt_xdate()
-        ax.legend(loc="upper left", fontsize=8, facecolor='#1e293b', edgecolor='#334155')
+        if lines:
+            ax.legend(handles=lines, loc="upper left", fontsize=8, facecolor='#1e293b', edgecolor='#334155')
         
         plt.tight_layout()
         plt.savefig(image_path, facecolor=fig.get_facecolor(), edgecolor='none')
@@ -1049,6 +1063,9 @@ class MetricsCollector:
         self._tg_send_cpu_graph = 1
         self._tg_send_ram_graph = 1
         self._tg_send_load_graph = 1
+        self._tg_send_load_1m_graph = 1
+        self._tg_send_load_5m_graph = 1
+        self._tg_send_load_15m_graph = 1
 
     def start(self):
         self._prev_net = _get_default_nic_counters()
@@ -1089,7 +1106,7 @@ class MetricsCollector:
             try:
                 with get_db() as conn:
                     row = conn.execute("""
-                        SELECT bot_token, chat_id, send_graph, enabled, graph_hours, send_sys_graph, send_net_graph, send_cpu_graph, send_ram_graph, send_load_graph 
+                        SELECT bot_token, chat_id, send_graph, enabled, graph_hours, send_sys_graph, send_net_graph, send_cpu_graph, send_ram_graph, send_load_1m_graph, send_load_5m_graph, send_load_15m_graph 
                         FROM telegram_config 
                         WHERE id = 1
                     """).fetchone()
@@ -1106,7 +1123,9 @@ class MetricsCollector:
                 send_net_graph = row["send_net_graph"] if row["send_net_graph"] is not None else 1
                 send_cpu_graph = row["send_cpu_graph"] if row["send_cpu_graph"] is not None else 1
                 send_ram_graph = row["send_ram_graph"] if row["send_ram_graph"] is not None else 1
-                send_load_graph = row["send_load_graph"] if row["send_load_graph"] is not None else 1
+                send_load_1m_graph = row["send_load_1m_graph"] if row["send_load_1m_graph"] is not None else 1
+                send_load_5m_graph = row["send_load_5m_graph"] if row["send_load_5m_graph"] is not None else 1
+                send_load_15m_graph = row["send_load_15m_graph"] if row["send_load_15m_graph"] is not None else 1
                 
                 url = f"https://api.telegram.org/bot{bot_token}/getUpdates?offset={offset}&timeout=10"
                 req = urllib.request.Request(url, method="GET")
@@ -1146,8 +1165,12 @@ class MetricsCollector:
                                 graphs_to_send.append(("cpu", generate_cpu_graph, f"📊 <b>[CPU Usage - Last {graph_hours}h]</b>"))
                             if send_ram_graph == 1:
                                 graphs_to_send.append(("ram", generate_ram_graph, f"📊 <b>[Memory Usage - Last {graph_hours}h]</b>"))
-                            if send_load_graph == 1:
-                                graphs_to_send.append(("load", generate_load_graph, f"📊 <b>[Load Average - Last {graph_hours}h]</b>"))
+                            if (send_load_1m_graph == 1 or send_load_5m_graph == 1 or send_load_15m_graph == 1):
+                                graphs_to_send.append((
+                                    "load", 
+                                    lambda p, hours: generate_load_graph(p, hours, plot_1m=(send_load_1m_graph==1), plot_5m=(send_load_5m_graph==1), plot_15m=(send_load_15m_graph==1)), 
+                                    f"📊 <b>[Load Average - Last {graph_hours}h]</b>"
+                                ))
                             if send_net_graph == 1:
                                 graphs_to_send.append(("net", generate_network_graph, f"📊 <b>[Network Traffic - Last {graph_hours}h]</b>"))
 
@@ -1159,7 +1182,7 @@ class MetricsCollector:
                                     try:
                                         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_file:
                                             tmp_path = tmp_file.name
-                                        gen_fn(tmp_path, hours=graph_hours)
+                                        gen_fn(tmp_path, graph_hours)
                                         send_telegram_photo(bot_token, chat_id, tmp_path, caption)
                                     except Exception as ge:
                                         print(f"[Telegram Graph Send Error] {g_type}: {ge}")
@@ -1284,7 +1307,7 @@ class MetricsCollector:
 
         with get_db() as conn:
             row = conn.execute("""
-                SELECT bot_token, chat_id, cpu_threshold, ram_threshold, load_threshold, disk_threshold, enabled, load_avg_type, alert_send_graph, graph_hours, send_sys_graph, send_net_graph, send_cpu_graph, send_ram_graph, send_load_graph
+                SELECT bot_token, chat_id, cpu_threshold, ram_threshold, load_threshold, disk_threshold, enabled, load_avg_type, alert_send_graph, graph_hours, send_sys_graph, send_net_graph, send_cpu_graph, send_ram_graph, send_load_graph, send_load_1m_graph, send_load_5m_graph, send_load_15m_graph
                 FROM telegram_config
                 WHERE id = 1
             """).fetchone()
@@ -1306,6 +1329,9 @@ class MetricsCollector:
             send_cpu_graph = row["send_cpu_graph"] if row["send_cpu_graph"] is not None else 1
             send_ram_graph = row["send_ram_graph"] if row["send_ram_graph"] is not None else 1
             send_load_graph = row["send_load_graph"] if row["send_load_graph"] is not None else 1
+            send_load_1m_graph = row["send_load_1m_graph"] if row["send_load_1m_graph"] is not None else 1
+            send_load_5m_graph = row["send_load_5m_graph"] if row["send_load_5m_graph"] is not None else 1
+            send_load_15m_graph = row["send_load_15m_graph"] if row["send_load_15m_graph"] is not None else 1
 
         # 1. Check Alert Thresholds
         alerts_triggered = []
@@ -1354,8 +1380,12 @@ class MetricsCollector:
                     graphs_to_send.append(("cpu", generate_cpu_graph, f"📊 <b>[CPU Usage - Last {graph_hours}h]</b>"))
                 if send_ram_graph == 1:
                     graphs_to_send.append(("ram", generate_ram_graph, f"📊 <b>[Memory Usage - Last {graph_hours}h]</b>"))
-                if send_load_graph == 1:
-                    graphs_to_send.append(("load", generate_load_graph, f"📊 <b>[Load Average - Last {graph_hours}h]</b>"))
+                if (send_load_1m_graph == 1 or send_load_5m_graph == 1 or send_load_15m_graph == 1):
+                    graphs_to_send.append((
+                        "load", 
+                        lambda p, hours: generate_load_graph(p, hours, plot_1m=(send_load_1m_graph==1), plot_5m=(send_load_5m_graph==1), plot_15m=(send_load_15m_graph==1)), 
+                        f"📊 <b>[Load Average - Last {graph_hours}h]</b>"
+                    ))
                 if send_net_graph == 1:
                     graphs_to_send.append(("net", generate_network_graph, f"📊 <b>[Network Traffic - Last {graph_hours}h]</b>"))
 
@@ -1388,7 +1418,7 @@ class MetricsCollector:
             try:
                 with get_db() as conn:
                     row = conn.execute("""
-                        SELECT bot_token, chat_id, interval_hours, last_routine_sent, send_graph, enabled, graph_hours, custom_interval_minutes, send_sys_graph, send_net_graph, send_cpu_graph, send_ram_graph, send_load_graph
+                        SELECT bot_token, chat_id, interval_hours, last_routine_sent, send_graph, enabled, graph_hours, custom_interval_minutes, send_sys_graph, send_net_graph, send_cpu_graph, send_ram_graph, send_load_graph, send_load_1m_graph, send_load_5m_graph, send_load_15m_graph
                         FROM telegram_config
                         WHERE id = 1
                     """).fetchone()
@@ -1409,6 +1439,9 @@ class MetricsCollector:
                         self._tg_send_cpu_graph = row["send_cpu_graph"] if row["send_cpu_graph"] is not None else 1
                         self._tg_send_ram_graph = row["send_ram_graph"] if row["send_ram_graph"] is not None else 1
                         self._tg_send_load_graph = row["send_load_graph"] if row["send_load_graph"] is not None else 1
+                        self._tg_send_load_1m_graph = row["send_load_1m_graph"] if row["send_load_1m_graph"] is not None else 1
+                        self._tg_send_load_5m_graph = row["send_load_5m_graph"] if row["send_load_5m_graph"] is not None else 1
+                        self._tg_send_load_15m_graph = row["send_load_15m_graph"] if row["send_load_15m_graph"] is not None else 1
                 self._tg_last_config_query_time = now
             except Exception as dbe:
                 print(f"[Telegram Cache Query Error] {dbe}")
@@ -1426,6 +1459,9 @@ class MetricsCollector:
         send_cpu_graph = self._tg_send_cpu_graph
         send_ram_graph = self._tg_send_ram_graph
         send_load_graph = self._tg_send_load_graph
+        send_load_1m_graph = self._tg_send_load_1m_graph
+        send_load_5m_graph = self._tg_send_load_5m_graph
+        send_load_15m_graph = self._tg_send_load_15m_graph
 
         if not bot_token or not chat_id or interval_hours == 0 or enabled == 0:
             return
@@ -1471,8 +1507,12 @@ class MetricsCollector:
                     graphs_to_send.append(("cpu", generate_cpu_graph, f"📊 <b>[CPU Usage - Last {graph_hours}h]</b>"))
                 if send_ram_graph == 1:
                     graphs_to_send.append(("ram", generate_ram_graph, f"📊 <b>[Memory Usage - Last {graph_hours}h]</b>"))
-                if send_load_graph == 1:
-                    graphs_to_send.append(("load", generate_load_graph, f"📊 <b>[Load Average - Last {graph_hours}h]</b>"))
+                if (send_load_1m_graph == 1 or send_load_5m_graph == 1 or send_load_15m_graph == 1):
+                    graphs_to_send.append((
+                        "load",
+                        lambda p, hours: generate_load_graph(p, hours, plot_1m=(send_load_1m_graph==1), plot_5m=(send_load_5m_graph==1), plot_15m=(send_load_15m_graph==1)),
+                        f"📊 <b>[Load Average - Last {graph_hours}h]</b>"
+                    ))
                 if send_net_graph == 1:
                     graphs_to_send.append(("net", generate_network_graph, f"📊 <b>[Network Traffic - Last {graph_hours}h]</b>"))
 
@@ -2176,6 +2216,9 @@ class TelegramConfigPayload(BaseModel):
     send_cpu_graph: int = 1
     send_ram_graph: int = 1
     send_load_graph: int = 1
+    send_load_1m_graph: int = 1
+    send_load_5m_graph: int = 1
+    send_load_15m_graph: int = 1
 
 class TelegramTestPayload(BaseModel):
     bot_token: str = None
@@ -2187,12 +2230,15 @@ class TelegramTestPayload(BaseModel):
     send_cpu_graph: int = None
     send_ram_graph: int = None
     send_load_graph: int = None
+    send_load_1m_graph: int = None
+    send_load_5m_graph: int = None
+    send_load_15m_graph: int = None
 
 @app.get("/api/telegram/config")
 async def get_telegram_config(username: str = Depends(get_current_username)):
     with get_db() as conn:
         row = conn.execute("""
-            SELECT bot_token, chat_id, interval_hours, cpu_threshold, ram_threshold, load_threshold, disk_threshold, send_graph, enabled, graph_hours, custom_interval_minutes, load_avg_type, alert_send_graph, send_sys_graph, send_net_graph, send_cpu_graph, send_ram_graph, send_load_graph
+            SELECT bot_token, chat_id, interval_hours, cpu_threshold, ram_threshold, load_threshold, disk_threshold, send_graph, enabled, graph_hours, custom_interval_minutes, load_avg_type, alert_send_graph, send_sys_graph, send_net_graph, send_cpu_graph, send_ram_graph, send_load_graph, send_load_1m_graph, send_load_5m_graph, send_load_15m_graph
             FROM telegram_config
             WHERE id = 1
         """).fetchone()
@@ -2215,7 +2261,10 @@ async def get_telegram_config(username: str = Depends(get_current_username)):
                 "send_net_graph": 1,
                 "send_cpu_graph": 1,
                 "send_ram_graph": 1,
-                "send_load_graph": 1
+                "send_load_graph": 1,
+                "send_load_1m_graph": 1,
+                "send_load_5m_graph": 1,
+                "send_load_15m_graph": 1
             })
         return JSONResponse(content={
             "bot_token": row["bot_token"],
@@ -2235,7 +2284,10 @@ async def get_telegram_config(username: str = Depends(get_current_username)):
             "send_net_graph": row["send_net_graph"] if row["send_net_graph"] is not None else 1,
             "send_cpu_graph": row["send_cpu_graph"] if row["send_cpu_graph"] is not None else 1,
             "send_ram_graph": row["send_ram_graph"] if row["send_ram_graph"] is not None else 1,
-            "send_load_graph": row["send_load_graph"] if row["send_load_graph"] is not None else 1
+            "send_load_graph": row["send_load_graph"] if row["send_load_graph"] is not None else 1,
+            "send_load_1m_graph": row["send_load_1m_graph"] if row["send_load_1m_graph"] is not None else 1,
+            "send_load_5m_graph": row["send_load_5m_graph"] if row["send_load_5m_graph"] is not None else 1,
+            "send_load_15m_graph": row["send_load_15m_graph"] if row["send_load_15m_graph"] is not None else 1
         })
 
 @app.post("/api/telegram/config")
@@ -2261,6 +2313,9 @@ async def save_telegram_config(payload: TelegramConfigPayload, username: str = D
                 send_cpu_graph = ?,
                 send_ram_graph = ?,
                 send_load_graph = ?,
+                send_load_1m_graph = ?,
+                send_load_5m_graph = ?,
+                send_load_15m_graph = ?,
                 last_routine_sent = 0.0
             WHERE id = 1
         """, (
@@ -2281,7 +2336,10 @@ async def save_telegram_config(payload: TelegramConfigPayload, username: str = D
             payload.send_net_graph,
             payload.send_cpu_graph,
             payload.send_ram_graph,
-            payload.send_load_graph
+            payload.send_load_graph,
+            payload.send_load_1m_graph,
+            payload.send_load_5m_graph,
+            payload.send_load_15m_graph
         ))
     return JSONResponse(content={"status": "success", "message": "Configuration saved"})
 
@@ -2293,7 +2351,7 @@ async def test_telegram_config(payload: TelegramTestPayload, username: str = Dep
     
     # Fallback to saved if not provided in payload
     with get_db() as conn:
-        row = conn.execute("SELECT bot_token, chat_id, send_graph, graph_hours, send_sys_graph, send_net_graph, send_cpu_graph, send_ram_graph, send_load_graph FROM telegram_config WHERE id = 1").fetchone()
+        row = conn.execute("SELECT bot_token, chat_id, send_graph, graph_hours, send_sys_graph, send_net_graph, send_cpu_graph, send_ram_graph, send_load_graph, send_load_1m_graph, send_load_5m_graph, send_load_15m_graph FROM telegram_config WHERE id = 1").fetchone()
         if row:
             if not bot_token: bot_token = row["bot_token"]
             if not chat_id: chat_id = row["chat_id"]
@@ -2303,12 +2361,18 @@ async def test_telegram_config(payload: TelegramTestPayload, username: str = Dep
             send_ram_graph = payload.send_ram_graph if payload.send_ram_graph is not None else (row["send_ram_graph"] if row["send_ram_graph"] is not None else 1)
             send_load_graph = payload.send_load_graph if payload.send_load_graph is not None else (row["send_load_graph"] if row["send_load_graph"] is not None else 1)
             send_net_graph = payload.send_net_graph if payload.send_net_graph is not None else (row["send_net_graph"] if row["send_net_graph"] is not None else 1)
+            send_load_1m_graph = payload.send_load_1m_graph if payload.send_load_1m_graph is not None else (row["send_load_1m_graph"] if row["send_load_1m_graph"] is not None else 1)
+            send_load_5m_graph = payload.send_load_5m_graph if payload.send_load_5m_graph is not None else (row["send_load_5m_graph"] if row["send_load_5m_graph"] is not None else 1)
+            send_load_15m_graph = payload.send_load_15m_graph if payload.send_load_15m_graph is not None else (row["send_load_15m_graph"] if row["send_load_15m_graph"] is not None else 1)
         else:
             graph_hours = payload.graph_hours if payload.graph_hours is not None else 3
             send_cpu_graph = payload.send_cpu_graph if payload.send_cpu_graph is not None else 1
             send_ram_graph = payload.send_ram_graph if payload.send_ram_graph is not None else 1
             send_load_graph = payload.send_load_graph if payload.send_load_graph is not None else 1
             send_net_graph = payload.send_net_graph if payload.send_net_graph is not None else 1
+            send_load_1m_graph = payload.send_load_1m_graph if payload.send_load_1m_graph is not None else 1
+            send_load_5m_graph = payload.send_load_5m_graph if payload.send_load_5m_graph is not None else 1
+            send_load_15m_graph = payload.send_load_15m_graph if payload.send_load_15m_graph is not None else 1
                 
     if not bot_token or not chat_id:
         raise HTTPException(status_code=400, detail="Bot Token and Chat ID are required")
@@ -2328,8 +2392,12 @@ async def test_telegram_config(payload: TelegramTestPayload, username: str = Dep
             graphs_to_send.append(("cpu", generate_cpu_graph, f"📊 <b>[CPU Usage - Last {graph_hours}h]</b>"))
         if send_ram_graph == 1:
             graphs_to_send.append(("ram", generate_ram_graph, f"📊 <b>[Memory Usage - Last {graph_hours}h]</b>"))
-        if send_load_graph == 1:
-            graphs_to_send.append(("load", generate_load_graph, f"📊 <b>[Load Average - Last {graph_hours}h]</b>"))
+        if (send_load_1m_graph == 1 or send_load_5m_graph == 1 or send_load_15m_graph == 1):
+            graphs_to_send.append((
+                "load",
+                lambda p, hours: generate_load_graph(p, hours, plot_1m=(send_load_1m_graph==1), plot_5m=(send_load_5m_graph==1), plot_15m=(send_load_15m_graph==1)),
+                f"📊 <b>[Load Average - Last {graph_hours}h]</b>"
+            ))
         if send_net_graph == 1:
             graphs_to_send.append(("net", generate_network_graph, f"📊 <b>[Network Traffic - Last {graph_hours}h]</b>"))
 

@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=1.0.30">
+    <link rel="stylesheet" href="/static/style.css?v=1.0.31">
 </head>
 
 <body>
@@ -770,9 +770,21 @@
                                 </label>
                             </div>
                             <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-bottom: 0;">
-                                <input type="checkbox" id="tgSendLoadGraph" checked style="width: 16px; height: 16px; cursor: pointer;">
-                                <label for="tgSendLoadGraph" style="font-size: 0.85rem; font-weight: 500; color: var(--text-secondary); cursor: pointer; user-select: none;">
-                                    Load Avg Graph
+                                <input type="checkbox" id="tgSendLoad1mGraph" checked style="width: 16px; height: 16px; cursor: pointer;">
+                                <label for="tgSendLoad1mGraph" style="font-size: 0.85rem; font-weight: 500; color: var(--text-secondary); cursor: pointer; user-select: none;">
+                                    Load Avg 1m
+                                </label>
+                            </div>
+                            <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-bottom: 0;">
+                                <input type="checkbox" id="tgSendLoad5mGraph" checked style="width: 16px; height: 16px; cursor: pointer;">
+                                <label for="tgSendLoad5mGraph" style="font-size: 0.85rem; font-weight: 500; color: var(--text-secondary); cursor: pointer; user-select: none;">
+                                    Load Avg 5m
+                                </label>
+                            </div>
+                            <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-bottom: 0;">
+                                <input type="checkbox" id="tgSendLoad15mGraph" checked style="width: 16px; height: 16px; cursor: pointer;">
+                                <label for="tgSendLoad15mGraph" style="font-size: 0.85rem; font-weight: 500; color: var(--text-secondary); cursor: pointer; user-select: none;">
+                                    Load Avg 15m
                                 </label>
                             </div>
                             <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-bottom: 0;">
@@ -801,7 +813,7 @@
                             <input type="number" id="tgLoadTh" placeholder="e.g. 4.0 (0 to disable)" min="0" step="0.1" style="width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-size: 0.9rem; outline: none;">
                         </div>
                         <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
-                            <label for="tgLoadAvgType" style="font-size: 0.82rem; font-weight: 500; color: var(--text-secondary);">Load Avg Interval</label>
+                            <label for="tgLoadAvgType" style="font-size: 0.82rem; font-weight: 500; color: var(--text-secondary);">Load Avg Duration</label>
                             <select id="tgLoadAvgType" class="iface-select" style="width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-size: 0.9rem; outline: none; height: auto;">
                                 <option value="1">1 Minute (1m)</option>
                                 <option value="5">5 Minutes (5m)</option>
@@ -1176,7 +1188,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script
         src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-    <script src="/static/app.js?v=1.0.30"></script>
+    <script src="/static/app.js?v=1.0.31"></script>
 
 </body>
 

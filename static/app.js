@@ -2382,7 +2382,9 @@
         const tgDiskTh = document.getElementById('tgDiskTh');
         const tgSendCpuGraph = document.getElementById('tgSendCpuGraph');
         const tgSendRamGraph = document.getElementById('tgSendRamGraph');
-        const tgSendLoadGraph = document.getElementById('tgSendLoadGraph');
+        const tgSendLoad1mGraph = document.getElementById('tgSendLoad1mGraph');
+        const tgSendLoad5mGraph = document.getElementById('tgSendLoad5mGraph');
+        const tgSendLoad15mGraph = document.getElementById('tgSendLoad15mGraph');
         const tgSendNetGraph = document.getElementById('tgSendNetGraph');
         const tgAlertSendGraph = document.getElementById('tgAlertSendGraph');
         const tgEnabled = document.getElementById('tgEnabled');
@@ -2432,7 +2434,9 @@
                 tgDiskTh.value = data.disk_threshold !== undefined ? data.disk_threshold : 0.0;
                 tgSendCpuGraph.checked = data.send_cpu_graph !== 0;
                 tgSendRamGraph.checked = data.send_ram_graph !== 0;
-                tgSendLoadGraph.checked = data.send_load_graph !== 0;
+                tgSendLoad1mGraph.checked = data.send_load_1m_graph !== 0;
+                tgSendLoad5mGraph.checked = data.send_load_5m_graph !== 0;
+                tgSendLoad15mGraph.checked = data.send_load_15m_graph !== 0;
                 tgSendNetGraph.checked = data.send_net_graph !== 0;
                 tgAlertSendGraph.checked = data.alert_send_graph === 1;
                 if (tgEnabled) {
@@ -2456,12 +2460,15 @@
                 load_threshold: parseFloat(tgLoadTh.value) || 0.0,
                 load_avg_type: parseInt(tgLoadAvgType.value, 10) || 1,
                 disk_threshold: parseFloat(tgDiskTh.value) || 0.0,
-                send_graph: (tgSendCpuGraph.checked || tgSendRamGraph.checked || tgSendLoadGraph.checked || tgSendNetGraph.checked) ? 1 : 0,
-                send_sys_graph: (tgSendCpuGraph.checked || tgSendRamGraph.checked || tgSendLoadGraph.checked) ? 1 : 0,
+                send_graph: (tgSendCpuGraph.checked || tgSendRamGraph.checked || tgSendLoad1mGraph.checked || tgSendLoad5mGraph.checked || tgSendLoad15mGraph.checked || tgSendNetGraph.checked) ? 1 : 0,
+                send_sys_graph: (tgSendCpuGraph.checked || tgSendRamGraph.checked || tgSendLoad1mGraph.checked || tgSendLoad5mGraph.checked || tgSendLoad15mGraph.checked) ? 1 : 0,
                 send_net_graph: tgSendNetGraph.checked ? 1 : 0,
                 send_cpu_graph: tgSendCpuGraph.checked ? 1 : 0,
                 send_ram_graph: tgSendRamGraph.checked ? 1 : 0,
-                send_load_graph: tgSendLoadGraph.checked ? 1 : 0,
+                send_load_graph: (tgSendLoad1mGraph.checked || tgSendLoad5mGraph.checked || tgSendLoad15mGraph.checked) ? 1 : 0,
+                send_load_1m_graph: tgSendLoad1mGraph.checked ? 1 : 0,
+                send_load_5m_graph: tgSendLoad5mGraph.checked ? 1 : 0,
+                send_load_15m_graph: tgSendLoad15mGraph.checked ? 1 : 0,
                 alert_send_graph: tgAlertSendGraph.checked ? 1 : 0,
                 enabled: tgEnabled ? (tgEnabled.checked ? 1 : 0) : 1
             };
@@ -2500,12 +2507,15 @@
             const testPayload = {
                 bot_token: tgBotToken.value.trim(),
                 chat_id: tgChatId.value.trim(),
-                send_graph: (tgSendCpuGraph.checked || tgSendRamGraph.checked || tgSendLoadGraph.checked || tgSendNetGraph.checked) ? 1 : 0,
-                send_sys_graph: (tgSendCpuGraph.checked || tgSendRamGraph.checked || tgSendLoadGraph.checked) ? 1 : 0,
+                send_graph: (tgSendCpuGraph.checked || tgSendRamGraph.checked || tgSendLoad1mGraph.checked || tgSendLoad5mGraph.checked || tgSendLoad15mGraph.checked || tgSendNetGraph.checked) ? 1 : 0,
+                send_sys_graph: (tgSendCpuGraph.checked || tgSendRamGraph.checked || tgSendLoad1mGraph.checked || tgSendLoad5mGraph.checked || tgSendLoad15mGraph.checked) ? 1 : 0,
                 send_net_graph: tgSendNetGraph.checked ? 1 : 0,
                 send_cpu_graph: tgSendCpuGraph.checked ? 1 : 0,
                 send_ram_graph: tgSendRamGraph.checked ? 1 : 0,
-                send_load_graph: tgSendLoadGraph.checked ? 1 : 0,
+                send_load_graph: (tgSendLoad1mGraph.checked || tgSendLoad5mGraph.checked || tgSendLoad15mGraph.checked) ? 1 : 0,
+                send_load_1m_graph: tgSendLoad1mGraph.checked ? 1 : 0,
+                send_load_5m_graph: tgSendLoad5mGraph.checked ? 1 : 0,
+                send_load_15m_graph: tgSendLoad15mGraph.checked ? 1 : 0,
                 graph_hours: parseInt(tgGraphHours.value, 10) || 3
             };
 
