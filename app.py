@@ -1081,7 +1081,7 @@ class MetricsCollector:
         self._running = False
 
     def _run(self):
-        last_collect = 0.0
+        last_collect = time.time()
         while self._running:
             try:
                 now = time.time()
@@ -1227,11 +1227,16 @@ class MetricsCollector:
         sent_rate = round((net.bytes_sent - self._prev_net.bytes_sent) / elapsed) if elapsed > 0 else 0
         recv_rate = round((net.bytes_recv - self._prev_net.bytes_recv) / elapsed) if elapsed > 0 else 0
 
-        # Cap spikes at 400 Mbps (50 MB/s) — NIC maximum
-        MAX_RATE = 50_000_000  # 400 Mbps in bytes/sec
-        if sent_rate > MAX_RATE or sent_rate < 0:
+        # Cap spikes at 10 Gbps (1.25 GB/s) to prevent invalid counter jumps from stretching Y-axis
+        MAX_RATE = 1_250_000_000  # 10 Gbps in bytes/sec
+        if sent_rate > MAX_RATE:
+            sent_rate = MAX_RATE
+        elif sent_rate < 0:
             sent_rate = 0
-        if recv_rate > MAX_RATE or recv_rate < 0:
+
+        if recv_rate > MAX_RATE:
+            recv_rate = MAX_RATE
+        elif recv_rate < 0:
             recv_rate = 0
 
         self._prev_net = net
