@@ -2372,17 +2372,31 @@
         const tgBotToken = document.getElementById('tgBotToken');
         const tgChatId = document.getElementById('tgChatId');
         const tgInterval = document.getElementById('tgInterval');
+        const tgCustomIntervalContainer = document.getElementById('tgCustomIntervalContainer');
+        const tgCustomInterval = document.getElementById('tgCustomInterval');
+        const tgGraphHours = document.getElementById('tgGraphHours');
         const tgCpuTh = document.getElementById('tgCpuTh');
         const tgRamTh = document.getElementById('tgRamTh');
         const tgLoadTh = document.getElementById('tgLoadTh');
+        const tgLoadAvgType = document.getElementById('tgLoadAvgType');
         const tgDiskTh = document.getElementById('tgDiskTh');
         const tgSendGraph = document.getElementById('tgSendGraph');
+        const tgAlertSendGraph = document.getElementById('tgAlertSendGraph');
         const tgEnabled = document.getElementById('tgEnabled');
         
         const btnSave = document.getElementById('btnTelegramSave');
         const btnTest = document.getElementById('btnTelegramTest');
 
         if (!btnOpen || !overlay) return;
+
+        function toggleCustomInterval() {
+            if (tgInterval.value === "-1") {
+                tgCustomIntervalContainer.classList.remove('hidden');
+            } else {
+                tgCustomIntervalContainer.classList.add('hidden');
+            }
+        }
+        tgInterval.addEventListener('change', toggleCustomInterval);
 
         // Open
         btnOpen.addEventListener('click', async () => {
@@ -2406,14 +2420,19 @@
                 tgBotToken.value = data.bot_token || '';
                 tgChatId.value = data.chat_id || '';
                 tgInterval.value = data.interval_hours !== undefined ? data.interval_hours : 0;
+                tgCustomInterval.value = data.custom_interval_minutes !== undefined ? data.custom_interval_minutes : 0;
+                tgGraphHours.value = data.graph_hours !== undefined ? data.graph_hours : 3;
                 tgCpuTh.value = data.cpu_threshold !== undefined ? data.cpu_threshold : 0.0;
                 tgRamTh.value = data.ram_threshold !== undefined ? data.ram_threshold : 0.0;
                 tgLoadTh.value = data.load_threshold !== undefined ? data.load_threshold : 0.0;
+                tgLoadAvgType.value = data.load_avg_type !== undefined ? data.load_avg_type : 1;
                 tgDiskTh.value = data.disk_threshold !== undefined ? data.disk_threshold : 0.0;
                 tgSendGraph.checked = data.send_graph === 1;
+                tgAlertSendGraph.checked = data.alert_send_graph === 1;
                 if (tgEnabled) {
                     tgEnabled.checked = data.enabled !== 0;
                 }
+                toggleCustomInterval();
             } catch (err) {
                 console.error("Failed to load telegram config:", err);
             }
@@ -2424,11 +2443,15 @@
                 bot_token: tgBotToken.value.trim(),
                 chat_id: tgChatId.value.trim(),
                 interval_hours: parseInt(tgInterval.value, 10) || 0,
+                custom_interval_minutes: parseInt(tgCustomInterval.value, 10) || 0,
+                graph_hours: parseInt(tgGraphHours.value, 10) || 3,
                 cpu_threshold: parseFloat(tgCpuTh.value) || 0.0,
                 ram_threshold: parseFloat(tgRamTh.value) || 0.0,
                 load_threshold: parseFloat(tgLoadTh.value) || 0.0,
+                load_avg_type: parseInt(tgLoadAvgType.value, 10) || 1,
                 disk_threshold: parseFloat(tgDiskTh.value) || 0.0,
                 send_graph: tgSendGraph.checked ? 1 : 0,
+                alert_send_graph: tgAlertSendGraph.checked ? 1 : 0,
                 enabled: tgEnabled ? (tgEnabled.checked ? 1 : 0) : 1
             };
 
@@ -2466,7 +2489,8 @@
             const testPayload = {
                 bot_token: tgBotToken.value.trim(),
                 chat_id: tgChatId.value.trim(),
-                send_graph: tgSendGraph.checked ? 1 : 0
+                send_graph: tgSendGraph.checked ? 1 : 0,
+                graph_hours: parseInt(tgGraphHours.value, 10) || 3
             };
 
             if (!testPayload.bot_token || !testPayload.chat_id) {
