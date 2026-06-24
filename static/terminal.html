@@ -94,6 +94,8 @@
         }
 
         input {
+            width: 100%;
+            box-sizing: border-box;
             background: #0f172a;
             border: 1px solid rgba(255, 255, 255, 0.1);
             color: #f1f5f9;
@@ -108,6 +110,16 @@
         input:focus {
             border-color: #6366f1;
             box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+        }
+
+        /* Override browser autofill style background and text colors */
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover, 
+        input:-webkit-autofill:focus, 
+        input:-webkit-autofill:active {
+            -webkit-box-shadow: 0 0 0 1000px #0f172a inset !important;
+            -webkit-text-fill-color: #f1f5f9 !important;
+            transition: background-color 5000s ease-in-out 0s;
         }
 
         button {
@@ -187,26 +199,26 @@
                 <h2>Server SSH Terminal</h2>
             </div>
 
-            <form id="ssh-form">
+            <form id="ssh-form" autocomplete="off">
                 <div class="form-row">
                     <div class="form-group">
                         <label>Host / IP</label>
-                        <input type="text" id="ssh-host" placeholder="e.g. 192.168.1.100" required>
+                        <input type="text" id="ssh-host" placeholder="e.g. 192.168.1.100" required autocomplete="new-password">
                     </div>
                     <div class="form-group">
                         <label>Port</label>
-                        <input type="number" id="ssh-port" placeholder="22" value="22" required>
+                        <input type="number" id="ssh-port" placeholder="22" value="22" required autocomplete="new-password">
                     </div>
                 </div>
 
                 <div class="form-group">
                     <label>Username</label>
-                    <input type="text" id="ssh-user" placeholder="root" required>
+                    <input type="text" id="ssh-user" value="root" placeholder="root" required autocomplete="new-password">
                 </div>
 
                 <div class="form-group">
                     <label>Password</label>
-                    <input type="password" id="ssh-pass" required>
+                    <input type="password" id="ssh-pass" required autocomplete="new-password">
                 </div>
 
                 <div class="error-message" id="login-error"></div>
