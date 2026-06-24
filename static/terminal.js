@@ -26,6 +26,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Auto-focus host input on load
     document.getElementById('ssh-host').focus();
 
+    // Reset and override browser autofill after a small delay (100ms)
+    setTimeout(() => {
+        const userField = document.getElementById('ssh-user');
+        const passField = document.getElementById('ssh-pass');
+        if (userField) userField.value = 'root';
+        if (passField) passField.value = '';
+    }, 100);
+
     let ws = null;
     let authSent = false;
 
