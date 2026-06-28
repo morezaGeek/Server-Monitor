@@ -88,6 +88,7 @@ docker run -d \
   --name server-monitor \
   --restart always \
   --network host \
+  --pid host \
   -e PORT="$PANEL_PORT" \
   -e PANEL_USERNAME="$PANEL_USERNAME" \
   -e PANEL_PASSWORD="$PANEL_PASSWORD" \

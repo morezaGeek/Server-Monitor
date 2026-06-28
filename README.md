@@ -66,6 +66,7 @@ services:
     container_name: server-monitor
     restart: always
     network_mode: host
+    pid: host
     cap_add:
       - NET_ADMIN
       - NET_RAW
