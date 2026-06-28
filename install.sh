@@ -142,7 +142,7 @@ setup_ssl() {
             echo ""
             read -e -p "  📄 Path to certificate file (fullchain.pem): " CERT_PATH < /dev/tty
             read -e -p "  🔑 Path to private key file (privkey.pem): " KEY_PATH < /dev/tty
-            
+
             if [ ! -f "$CERT_PATH" ]; then
                 echo -e "  ${RED}✘ Certificate file not found: $CERT_PATH${NC}"
                 return 1
@@ -151,13 +151,13 @@ setup_ssl() {
                 echo -e "  ${RED}✘ Key file not found: $KEY_PATH${NC}"
                 return 1
             fi
-            
+
             # Try to detect domain from Let's Encrypt path
             local DETECTED_DOMAIN=""
             if echo "$CERT_PATH" | grep -qP '/letsencrypt/live/([^/]+)/'; then
                 DETECTED_DOMAIN=$(echo "$CERT_PATH" | grep -oP '/letsencrypt/live/\K[^/]+')
             fi
-            
+
             if [ -n "$DETECTED_DOMAIN" ]; then
                 echo -e "  ${GREEN}✔ Detected domain: ${BOLD}$DETECTED_DOMAIN${NC}"
                 read -e -p "  🌐 Confirm domain [$DETECTED_DOMAIN]: " USER_DOMAIN < /dev/tty
@@ -178,7 +178,7 @@ setup_ssl() {
                 cp "$KEY_PATH" "$SSL_DIR/privkey.pem"
                 write_service_file "$port" "$user" "$pass" "$SSL_DIR/fullchain.pem" "$SSL_DIR/privkey.pem" "$CERT_DOMAIN"
             fi
-            
+
             echo -e "  ${GREEN}✔ SSL configured with your certificate${NC}"
             return 0
             ;;
@@ -187,42 +187,42 @@ setup_ssl() {
                 echo -e "  ${RED}✘ Certbot is not installed. Cannot proceed.${NC}"
                 return 1
             fi
-            
+
             echo ""
             echo -e "  ${YELLOW}⚠ Important:${NC}"
             echo -e "  • Port ${BOLD}80${NC} must be open and not in use"
             echo -e "  • Your domain must point to this server's IP"
             echo ""
             read -e -p "  🌐 Enter your domain name (e.g. monitor.example.com): " DOMAIN < /dev/tty
-            
+
             if [ -z "$DOMAIN" ]; then
                 echo -e "  ${RED}✘ Domain cannot be empty.${NC}"
                 return 1
             fi
-            
+
             echo ""
             echo -e "${BLUE}▸ Requesting certificate for ${BOLD}$DOMAIN${NC}..."
-            
+
             # Stop anything on port 80 temporarily
             systemctl stop server-monitor 2>/dev/null || true
-            
+
             certbot certonly --standalone -d "$DOMAIN" --non-interactive --agree-tos --register-unsafely-without-email 2>&1
-            
+
             if [ $? -eq 0 ]; then
                 local LE_CERT="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
                 local LE_KEY="/etc/letsencrypt/live/$DOMAIN/privkey.pem"
-                
+
                 if [ -f "$LE_CERT" ] && [ -f "$LE_KEY" ]; then
                     write_service_file "$port" "$user" "$pass" "$LE_CERT" "$LE_KEY" "$DOMAIN"
                     echo -e "  ${GREEN}✔ SSL certificate obtained for $DOMAIN${NC}"
-                    
+
                     # Setup auto-renewal cron
                     (crontab -l 2>/dev/null | grep -v "certbot renew"; echo "0 3 * * * certbot renew --quiet --deploy-hook 'systemctl restart server-monitor'") | crontab -
                     echo -e "  ${GREEN}✔ Auto-renewal configured (daily at 3 AM)${NC}"
                     return 0
                 fi
             fi
-            
+
             echo -e "  ${RED}✘ Failed to obtain certificate. Check that:${NC}"
             echo -e "  ${RED}  • $DOMAIN points to this server${NC}"
             echo -e "  ${RED}  • Port 80 is open${NC}"
