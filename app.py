@@ -2564,7 +2564,7 @@ async def update_panel(skip_git: bool = Query(False), username: str = Depends(ge
             subprocess.Popen(cmd_str, shell=True, preexec_fn=os.setsid)
             return {"status": "success", "message": "Update started via fallback background process."}
         except Exception as err:
-            return {"error": f"Failed to launch update process: {str(e)} (Fallback error: {str(err)})"}}
+            return {"error": f"Failed to launch update process: {str(e)} (Fallback error: {str(err)})"}
 
 
 @app.get("/")
