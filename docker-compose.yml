@@ -7,6 +7,7 @@ services:
     restart: always
     # Share host network namespace to monitor all host interfaces and actual network speed
     network_mode: host
+    pid: host
     cap_add:
       - NET_ADMIN
       - NET_RAW
