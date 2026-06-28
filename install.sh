@@ -247,7 +247,7 @@ do_install() {
 
     # ── Detect if this is an UPGRADE ──────────────────────────────
     IS_UPGRADE=false
-    if [ -f "$SERVICE_FILE" ] && [ -d "$INSTALL_DIR/.git" ]; then
+    if [ -f "$SERVICE_FILE" ]; then
         IS_UPGRADE=true
         echo ""
         echo -e "${CYAN}  ╔═══════════════════════════════════════╗${NC}"
@@ -299,13 +299,24 @@ do_install() {
     elif [ -d "$INSTALL_DIR/.git" ]; then
         echo -e "${BLUE}▸ Pulling latest version from GitHub...${NC}"
         cd "$INSTALL_DIR"
+        git config core.filemode false
         git fetch --all
         git reset --hard origin/main
     else
         echo -e "${BLUE}▸ Downloading Server Monitor...${NC}"
-        mkdir -p "$INSTALL_DIR"
-        git clone "$REPO_URL" "$INSTALL_DIR"
-        cd "$INSTALL_DIR"
+        if [ -d "$INSTALL_DIR" ] && [ "$(ls -A "$INSTALL_DIR" 2>/dev/null)" ]; then
+            cd "$INSTALL_DIR"
+            git init
+            git config core.filemode false
+            git remote add origin "$REPO_URL"
+            git fetch --all
+            git reset --hard origin/main
+        else
+            mkdir -p "$INSTALL_DIR"
+            git clone "$REPO_URL" "$INSTALL_DIR"
+            cd "$INSTALL_DIR"
+            git config core.filemode false
+        fi
     fi
     echo -e "${GREEN}✔ Files updated${NC}"
 
