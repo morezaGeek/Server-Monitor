@@ -41,7 +41,7 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metrics.db")
 COLLECT_INTERVAL = 60  # seconds
 RETENTION_DAYS = 31
 PORT = 8080
-VERSION = "1.0.37"
+VERSION = "1.0.38"
 UI_REFRESH_INTERVAL = 3
 
 RANGE_MAP = {
@@ -2534,32 +2534,37 @@ async def update_panel(skip_git: bool = Query(False), username: str = Depends(ge
         env_vars = []
         if skip_git:
             env_vars = ["--setenv=SKIP_GIT=true"]
-            
+        
+        # Build systemd-run command - use simple flags compatible with older systemd versions
         if skip_git:
             cmd = [
-                "systemd-run", f"--unit={unit_name}", "--description=Server Monitor Self Update", "--remain-after-exit=no"
+                "systemd-run", f"--unit={unit_name}", f"--description=Server Monitor Self Update"
             ] + env_vars + ["bash", install_script, "upgrade"]
         else:
             # Download and run the absolute latest installer to avoid bugs in older local scripts
-            cmd_str = f"curl -sL https://raw.githubusercontent.com/morezaGeek/Server-Monitor/main/install.sh | bash -s -- upgrade"
+            cmd_str = f"curl -sL https://raw.githubusercontent.com/morezaGeek/Server-Monitor/main/install.sh | bash -s -- upgrade > /tmp/server-monitor-update.log 2>&1"
             cmd = [
-                "systemd-run", f"--unit={unit_name}", "--description=Server Monitor Self Update", "--remain-after-exit=no",
+                "systemd-run", f"--unit={unit_name}", f"--description=Server Monitor Self Update",
                 "bash", "-c", cmd_str
             ]
         
-        subprocess.Popen(cmd)
-        return {"status": "success", "message": "Update started in background. The panel will restart in a few seconds."}
+        # Use subprocess.run with a short timeout just to launch - if systemd-run fails, fall through to nohup
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        if result.returncode == 0:
+            return {"status": "success", "message": "Update started in background. The panel will restart in a few seconds."}
+        else:
+            raise Exception(f"systemd-run failed: {result.stderr}")
     except Exception as e:
-        # Fallback to setsid double-fork nohup if systemd-run is not available
+        # Fallback to setsid double-fork nohup if systemd-run is not available or fails
         try:
             if skip_git:
-                cmd_str = f"nohup SKIP_GIT=true bash {install_script} upgrade >/dev/null 2>&1 &"
+                cmd_str = f"nohup SKIP_GIT=true bash {install_script} upgrade > /tmp/server-monitor-update.log 2>&1 &"
             else:
-                cmd_str = f"nohup curl -sL https://raw.githubusercontent.com/morezaGeek/Server-Monitor/main/install.sh | bash -s -- upgrade >/dev/null 2>&1 &"
+                cmd_str = f"nohup bash -c 'curl -sL https://raw.githubusercontent.com/morezaGeek/Server-Monitor/main/install.sh | bash -s -- upgrade > /tmp/server-monitor-update.log 2>&1' &"
             subprocess.Popen(cmd_str, shell=True, preexec_fn=os.setsid)
             return {"status": "success", "message": "Update started via fallback background process."}
         except Exception as err:
-            return {"error": f"Failed to launch update process: {str(e)} (Fallback error: {str(err)})"}
+            return {"error": f"Failed to launch update process: {str(e)} (Fallback error: {str(err)})"}}
 
 
 @app.get("/")
