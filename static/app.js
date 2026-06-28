@@ -2733,38 +2733,81 @@
             return false;
         }
 
+        async function getServerVersion() {
+            try {
+                const res = await fetch("/api/current?t=" + Date.now());
+                if (res.status === 200) {
+                    const data = await res.json();
+                    return data.version || null;
+                }
+            } catch (err) {
+                // Server is down
+            }
+            return null;
+        }
+
         function startPolling() {
-            let attempts = 0;
-            const maxAttempts = 30; // 60 seconds max polling
+            const currentVersion = document.getElementById("panelVersion")?.textContent?.replace(/^v/, "").trim() || null;
+            let phase = "waiting_offline"; // Phase 1: wait for server to go offline
+            let offlineAttempts = 0;
+            let onlineAttempts = 0;
+            const maxOfflineWait = 60;  // 120 seconds to go offline
+            const maxOnlineWait = 60;   // 120 seconds to come back
 
             pollInterval = setInterval(async () => {
-                attempts += 1;
-                statusText.textContent = `Waiting for server to restart... Attempt ${attempts}/${maxAttempts}`;
+                if (phase === "waiting_offline") {
+                    offlineAttempts += 1;
+                    statusText.textContent = `Waiting for service to restart... (${offlineAttempts}s)`;
 
-                const online = await checkServerOnline();
-                if (online) {
-                    clearInterval(pollInterval);
-                    if (updateInterval) clearInterval(updateInterval);
-                    
-                    progressBar.style.width = "100%";
-                    progressPercent.textContent = "100%";
-                    statusText.textContent = "Server is back online! Refreshing...";
-                    
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 1000);
-                } else if (attempts >= maxAttempts) {
-                    clearInterval(pollInterval);
-                    if (updateInterval) clearInterval(updateInterval);
-                    statusText.textContent = "Update timed out. Please refresh manually.";
-                    // Enable close click
-                    overlay.addEventListener("click", () => {
-                        overlay.classList.add("hidden");
-                        document.body.style.overflow = "";
-                    });
+                    const online = await checkServerOnline();
+                    if (!online) {
+                        // Server went offline - service is restarting
+                        phase = "waiting_online";
+                        statusText.textContent = "Service restarting... waiting for it to come back online.";
+                    } else if (offlineAttempts >= maxOfflineWait) {
+                        // Server never went offline - maybe it restarted too fast
+                        // Switch to version-check mode
+                        phase = "waiting_version";
+                        statusText.textContent = "Checking for new version...";
+                    }
+
+                } else if (phase === "waiting_online") {
+                    onlineAttempts += 1;
+                    statusText.textContent = `Service restarting... attempt ${onlineAttempts}/${maxOnlineWait}`;
+
+                    const version = await getServerVersion();
+                    if (version !== null) {
+                        // Server is back online
+                        clearInterval(pollInterval);
+                        if (updateInterval) clearInterval(updateInterval);
+                        progressBar.style.width = "100%";
+                        progressPercent.textContent = "100%";
+                        statusText.textContent = "Update complete! Refreshing...";
+                        setTimeout(() => { window.location.reload(); }, 1500);
+                    } else if (onlineAttempts >= maxOnlineWait) {
+                        clearInterval(pollInterval);
+                        if (updateInterval) clearInterval(updateInterval);
+                        statusText.textContent = "Update timed out. Please refresh manually.";
+                    }
+
+                } else if (phase === "waiting_version") {
+                    onlineAttempts += 1;
+                    statusText.textContent = `Checking for updated version... (${onlineAttempts}s)`;
+
+                    const version = await getServerVersion();
+                    // Reload if version changed, or after 60 more seconds
+                    if ((version && currentVersion && version !== currentVersion) || onlineAttempts >= 60) {
+                        clearInterval(pollInterval);
+                        if (updateInterval) clearInterval(updateInterval);
+                        progressBar.style.width = "100%";
+                        progressPercent.textContent = "100%";
+                        statusText.textContent = version !== currentVersion
+                            ? `Updated to ${version}! Refreshing...`
+                            : "Update complete! Refreshing...";
+                        setTimeout(() => { window.location.reload(); }, 1500);
+                    }
                 }
             }, 2000);
-        }
 
         async function triggerAction(skipGit) {
             if (isUpdating) return;
