@@ -3143,3 +3143,15 @@ body {
         grid-template-columns: 1fr;
     }
 }
+
+.github-link {
+    color: var(--accent-color, #ffa500);
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.github-link:hover {
+    color: var(--text-primary);
+    text-shadow: 0 0 8px var(--accent-color, #ffa500);
+}

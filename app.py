@@ -41,7 +41,7 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metrics.db")
 COLLECT_INTERVAL = 60  # seconds
 RETENTION_DAYS = 31
 PORT = 8080
-VERSION = "1.0.35"
+VERSION = "1.0.36"
 UI_REFRESH_INTERVAL = 3
 
 RANGE_MAP = {
