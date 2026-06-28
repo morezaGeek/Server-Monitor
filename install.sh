@@ -702,6 +702,12 @@ do_cert_manager() {
 # ─────────────────────────────────────────
 # MAIN MENU
 # ─────────────────────────────────────────
+# Non-interactive CLI argument support (e.g. for automatic background updates)
+if [[ "$1" == "install" || "$1" == "upgrade" || "$1" == "--auto" || "$1" == "auto" ]]; then
+    do_install
+    exit 0
+fi
+
 header
 
 echo ""

@@ -41,7 +41,7 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metrics.db")
 COLLECT_INTERVAL = 60  # seconds
 RETENTION_DAYS = 31
 PORT = 8080
-VERSION = "1.0.34"
+VERSION = "1.0.35"
 UI_REFRESH_INTERVAL = 3
 
 RANGE_MAP = {
@@ -2538,10 +2538,10 @@ async def update_panel(skip_git: bool = Query(False), username: str = Depends(ge
         if skip_git:
             cmd = [
                 "systemd-run", f"--unit={unit_name}", "--description=Server Monitor Self Update", "--remain-after-exit=no"
-            ] + env_vars + ["bash", install_script]
+            ] + env_vars + ["bash", install_script, "upgrade"]
         else:
             # Download and run the absolute latest installer to avoid bugs in older local scripts
-            cmd_str = f"curl -sL https://raw.githubusercontent.com/morezaGeek/Server-Monitor/main/install.sh | bash"
+            cmd_str = f"curl -sL https://raw.githubusercontent.com/morezaGeek/Server-Monitor/main/install.sh | bash -s -- upgrade"
             cmd = [
                 "systemd-run", f"--unit={unit_name}", "--description=Server Monitor Self Update", "--remain-after-exit=no",
                 "bash", "-c", cmd_str
@@ -2552,8 +2552,10 @@ async def update_panel(skip_git: bool = Query(False), username: str = Depends(ge
     except Exception as e:
         # Fallback to setsid double-fork nohup if systemd-run is not available
         try:
-            env_prefix = "SKIP_GIT=true " if skip_git else ""
-            cmd_str = f"nohup {env_prefix}bash {install_script} >/dev/null 2>&1 &"
+            if skip_git:
+                cmd_str = f"nohup SKIP_GIT=true bash {install_script} upgrade >/dev/null 2>&1 &"
+            else:
+                cmd_str = f"nohup curl -sL https://raw.githubusercontent.com/morezaGeek/Server-Monitor/main/install.sh | bash -s -- upgrade >/dev/null 2>&1 &"
             subprocess.Popen(cmd_str, shell=True, preexec_fn=os.setsid)
             return {"status": "success", "message": "Update started via fallback background process."}
         except Exception as err:

@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     sqlite3 \
     libsqlite3-dev \
     curl \
+    ca-certificates \
     iptables \
     ipset \
     dnsmasq \
