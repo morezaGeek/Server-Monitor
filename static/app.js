@@ -2799,9 +2799,22 @@
             }, 230);
 
             try {
-                await fetch(`/api/update?skip_git=${skipGit}`, {
+                const resp = await fetch(`/api/update?skip_git=${skipGit}`, {
                     method: "POST"
                 });
+
+                // Check for Docker environment error
+                if (resp.ok) {
+                    const data = await resp.json().catch(() => null);
+                    if (data && data.error === "docker") {
+                        // Hide overlay, show Docker instructions
+                        clearInterval(updateInterval);
+                        overlay.classList.add("hidden");
+                        isUpdating = false;
+                        alert("⚠️ Docker Installation Detected\n\nThis panel is running inside Docker and cannot self-update.\n\nTo update, run on your host server:\n\n  docker-compose pull\n  docker-compose up -d");
+                        return;
+                    }
+                }
                 
                 // If successful or if it fails due to network termination, start polling
                 startPolling();

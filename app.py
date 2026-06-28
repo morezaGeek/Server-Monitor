@@ -41,7 +41,7 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metrics.db")
 COLLECT_INTERVAL = 60  # seconds
 RETENTION_DAYS = 31
 PORT = 8080
-VERSION = "1.0.40"
+VERSION = "1.0.41"
 UI_REFRESH_INTERVAL = 3
 
 RANGE_MAP = {
@@ -2518,7 +2518,24 @@ async def update_settings(settings: SSLSettings, username: str = Depends(get_cur
 async def update_panel(skip_git: bool = Query(False), username: str = Depends(get_current_username)):
     """Trigger systemd-run to execute install.sh to pull and upgrade the panel detached."""
     import subprocess
-    
+
+    # Detect Docker environment - containers cannot self-update via systemd
+    is_docker = os.path.exists("/.dockerenv") or os.environ.get("DOCKER_CONTAINER") == "true"
+    if is_docker:
+        return {
+            "error": "docker",
+            "message": (
+                "This panel is running inside a Docker container and cannot self-update.\n"
+                "To update, run the following commands on your host server:\n\n"
+                "  docker-compose pull\n"
+                "  docker-compose up -d\n\n"
+                "Or with docker run:\n"
+                "  docker pull reza13721205/server-monitor:latest\n"
+                "  docker stop server-monitor && docker rm server-monitor\n"
+                "  docker run -d ... reza13721205/server-monitor:latest"
+            )
+        }
+
     install_script = "/opt/server-monitor/install.sh"
     if not os.path.exists(install_script):
         # Fallback if installed in a different folder
