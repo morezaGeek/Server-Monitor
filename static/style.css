@@ -807,6 +807,8 @@
 .telegram-modal-box {
     max-width: 500px !important;
     width: 95%;
+    max-height: 90vh;
+    overflow-y: auto;
     padding: 30px;
     background: var(--bg-card) !important;
     backdrop-filter: blur(25px) saturate(180%) !important;
