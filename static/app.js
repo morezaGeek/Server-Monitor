@@ -2751,31 +2751,38 @@
             let phase = "waiting_offline"; // Phase 1: wait for server to go offline
             let offlineAttempts = 0;
             let onlineAttempts = 0;
-            const maxOfflineWait = 60;  // 120 seconds to go offline
-            const maxOnlineWait = 60;   // 120 seconds to come back
+            const maxOfflineWait = 15;  // 30 seconds max to go offline
+            const maxOnlineWait = 60;   // 120 seconds max to come back
 
             pollInterval = setInterval(async () => {
+                const version = await getServerVersion();
+
                 if (phase === "waiting_offline") {
                     offlineAttempts += 1;
-                    statusText.textContent = `Waiting for service to restart... (${offlineAttempts}s)`;
+                    statusText.textContent = `Waiting for service to restart... (${offlineAttempts * 2}s)`;
 
-                    const online = await checkServerOnline();
-                    if (!online) {
+                    if (version === null) {
                         // Server went offline - service is restarting
                         phase = "waiting_online";
                         statusText.textContent = "Service restarting... waiting for it to come back online.";
+                    } else if (currentVersion && version !== currentVersion) {
+                        // Version already changed! It restarted very quickly.
+                        clearInterval(pollInterval);
+                        if (updateInterval) clearInterval(updateInterval);
+                        progressBar.style.width = "100%";
+                        progressPercent.textContent = "100%";
+                        statusText.textContent = `Updated to ${version}! Refreshing...`;
+                        setTimeout(() => { window.location.reload(); }, 1500);
                     } else if (offlineAttempts >= maxOfflineWait) {
-                        // Server never went offline - maybe it restarted too fast
-                        // Switch to version-check mode
+                        // Server never went offline - maybe it restarted too fast and version didn't change (e.g. reinstall)
                         phase = "waiting_version";
                         statusText.textContent = "Checking for new version...";
                     }
 
                 } else if (phase === "waiting_online") {
                     onlineAttempts += 1;
-                    statusText.textContent = `Service restarting... attempt ${onlineAttempts}/${maxOnlineWait}`;
+                    statusText.textContent = `Service restarting... (${onlineAttempts * 2}s)`;
 
-                    const version = await getServerVersion();
                     if (version !== null) {
                         // Server is back online
                         clearInterval(pollInterval);
@@ -2792,11 +2799,10 @@
 
                 } else if (phase === "waiting_version") {
                     onlineAttempts += 1;
-                    statusText.textContent = `Checking for updated version... (${onlineAttempts}s)`;
+                    statusText.textContent = `Checking for updated version... (${onlineAttempts * 2}s)`;
 
-                    const version = await getServerVersion();
-                    // Reload if version changed, or after 60 more seconds
-                    if ((version && currentVersion && version !== currentVersion) || onlineAttempts >= 60) {
+                    // Reload if version changed, or after 30 more seconds
+                    if ((version && currentVersion && version !== currentVersion) || onlineAttempts >= 15) {
                         clearInterval(pollInterval);
                         if (updateInterval) clearInterval(updateInterval);
                         progressBar.style.width = "100%";

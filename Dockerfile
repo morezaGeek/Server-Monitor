@@ -22,13 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     iptables \
     ipset \
-    dnsmasq \
     && rm -rf /var/lib/apt/lists/*
-
-# Pre-configure dnsmasq to avoid port 53 conflicts before app.py writes to it
-RUN echo "port=5353" > /etc/dnsmasq.conf && \
-    echo "listen-address=127.0.0.1" >> /etc/dnsmasq.conf && \
-    echo "bind-interfaces" >> /etc/dnsmasq.conf
 
 # Copy requirements and install dependencies
 COPY requirements.txt .
