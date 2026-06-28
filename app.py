@@ -2518,6 +2518,8 @@ async def update_settings(settings: SSLSettings, username: str = Depends(get_cur
 async def update_panel(skip_git: bool = Query(False), username: str = Depends(get_current_username)):
     """Trigger systemd-run to execute install.sh to pull and upgrade the panel detached."""
     import subprocess
+    if os.path.exists("/.dockerenv"):
+        return {"error": "You are running in Docker. Please update by running \"docker compose pull && docker compose up -d\" on your host machine."}
     
     install_script = "/opt/server-monitor/install.sh"
     if not os.path.exists(install_script):
@@ -2537,13 +2539,13 @@ async def update_panel(skip_git: bool = Query(False), username: str = Depends(ge
             
         if skip_git:
             cmd = [
-                "systemd-run", f"--unit={unit_name}", "--description=Server Monitor Self Update", "--remain-after-exit=no"
+                "systemd-run", f"--unit={unit_name}", "--description=Server Monitor Self Update"
             ] + env_vars + ["bash", install_script]
         else:
             # Download and run the absolute latest installer to avoid bugs in older local scripts
             cmd_str = f"curl -sL https://raw.githubusercontent.com/morezaGeek/Server-Monitor/main/install.sh | bash"
             cmd = [
-                "systemd-run", f"--unit={unit_name}", "--description=Server Monitor Self Update", "--remain-after-exit=no",
+                "systemd-run", f"--unit={unit_name}", "--description=Server Monitor Self Update",
                 "bash", "-c", cmd_str
             ]
         
