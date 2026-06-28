@@ -2808,6 +2808,7 @@
                     }
                 }
             }, 2000);
+        }
 
         async function triggerAction(skipGit) {
             if (isUpdating) return;
